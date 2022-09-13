@@ -107,12 +107,13 @@ class SoftEmbedding(nn.Module):
         Returns:
             torch.float: encoding of text concatenated with learned task specifc embedding
         """
-        input_embedding = self.wte(tokens[:, self.n_tokens:]) ## (1,4,768)
-        if len(tokens) > 1:
+        # input_embedding = self.wte(tokens[:, self.n_tokens:]) ## (1,4,768)
+        if tokens.size()[1] > 1:
+            input_embedding = self.wte(tokens[:, self.n_tokens:]) ## (1,4,768)
             learned_embedding = self.learned_embedding.repeat(input_embedding.size(0), 1, 1) #torch.Size([1, 20, 768])
             return torch.cat([learned_embedding, input_embedding], 1) #torch.Size([1, 24, 768])
         else:
-            return input_embedding
+            return self.wte(tokens)
 
 
 
