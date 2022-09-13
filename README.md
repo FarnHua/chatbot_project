@@ -2,19 +2,17 @@ This project is modified from https://github.com/jacksukk/Chatbot-Project
 
 
 We adapt the DialoGPT(https://github.com/microsoft/DialoGPT) model to be our chatbot model.
-## Update
-A new version is already implemented in branch "dev".
 ## Get started
 #### Clone the repository
 ```
-git clone https://github.com/jacksukk/Chatbot-Project.git
+git clone https://github.com/FarnHua/chatbot_project.git
 ```
 #### Corpus
 https://github.com/facebookresearch/EmpatheticDialogues.git
 
 #### Train
 ```
-python train_c.py --emotion <emotion> --writer <tensorboard writer> --save <save path> --model <pretrained model> --ra <ratio between 2 loss> --inter <interlocutor you want to interact>
+python train_c.py --emotion <emotion> --writer <tensorboard writer> --save <save path> --model <pretrained model> --ra <ratio between 2 loss> --inter <interlocutor you want to interact> --sw <specific word>
 ```
 
 #### Test
