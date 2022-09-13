@@ -10,6 +10,7 @@ from Emo_detector.detect_emotion import re_emo_score, prepare_model
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 import tqdm
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
@@ -59,6 +60,55 @@ bad_word = ["4r5e", "5h1t", "5hit", "a55", "anal", "anus", "ar5e", "arrse", "ars
 bad_dict = {}
 for w in bad_word:
     bad_dict[w] = 1
+
+class SoftEmbedding(nn.Module):
+    def __init__(self, 
+                wte: nn.Embedding,
+                n_tokens: int = 10, 
+                random_range: float = 0.5,
+                initialize_from_vocab: bool = True):
+        """appends learned embedding to 
+        Args:
+            wte (nn.Embedding): original transformer word embedding
+            n_tokens (int, optional): number of tokens for task. Defaults to 10.
+            random_range (float, optional): range to init embedding (if not initialize from vocab). Defaults to 0.5.
+            initialize_from_vocab (bool, optional): initalizes from default vocab. Defaults to True.
+        """
+        super(SoftEmbedding, self).__init__()
+        self.wte = wte
+        self.n_tokens = n_tokens
+        self.learned_embedding = nn.parameter.Parameter(self.initialize_embedding(wte, n_tokens, random_range, initialize_from_vocab))
+        ## (20,768)
+        
+            
+    def initialize_embedding(self, 
+                             wte: nn.Embedding,
+                             n_tokens: int = 10, 
+                             random_range: float = 0.5, 
+                             initialize_from_vocab: bool = True):
+        """initializes learned embedding
+        Args:
+            same as __init__
+        Returns:
+            torch.float: initialized using original schemes
+        """
+        
+        if initialize_from_vocab:
+            return self.wte.weight[:n_tokens].clone().detach()
+        return torch.FloatTensor(n_tokens, wte.weight.size(1)).uniform_(-random_range, random_range)
+            
+    def forward(self, tokens):
+        """run forward pass
+        Args:
+            tokens (torch.long): input tokens before encoding
+        Returns:
+            torch.float: encoding of text concatenated with learned task specifc embedding
+        """
+        print(tokens.size())
+        input_embedding = self.wte(tokens[:, self.n_tokens:]) ## (1,4,768)
+        learned_embedding = self.learned_embedding.repeat(input_embedding.size(0), 1, 1) #torch.Size([1, 20, 768])
+        return torch.cat([learned_embedding, input_embedding], 1) #torch.Size([1, 24, 768])
+
 
 
 def top_filtering(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
@@ -121,12 +171,15 @@ def make_response(model, sentences, tokenizer, first_input):
 
         prev_input = pad_sequence([torch.LongTensor(x) for x in sentences], batch_first=True, padding_value=0).to(device_1)
         mask = pad_sequence([torch.LongTensor(x) for x in mask], batch_first=True, padding_value=0).to(device_1)
-        _, past = model(prev_input, past=None, attention_mask=mask)
+        #_, past = model(prev_input, past=None, attention_mask=mask)
+        output = model(prev_input, past_key_values=None, attention_mask=mask)
+        past = output['past_key_values']
         prev_input = torch.LongTensor([[eos] * len(sentences)]).to(device_1)
         temp_sentence = [[] for i in range(len(sentences))]
         for i in range(128):
-            prev_input, past = model(prev_input, past=past)
-
+            #prev_input, past = model(prev_input, past=past)
+            output = model(prev_input, past_key_values=past)
+            prev_input, past = output['logits'], output['past_key_values']
             prev_input = prev_input.squeeze(0).squeeze(1)
             prev_input = prev_input / 0.7
             prev_input = torch.softmax(prev_input, dim=-1)
@@ -146,45 +199,64 @@ def make_response(model, sentences, tokenizer, first_input):
             if flag == 1: break
     return [[tokenizer.decode(x).replace('<|endoftext|>', '')] for x in temp_sentence]
     
-def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size):
+def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens):
     loss = 0
-    inputs_id = inputs_id.to(device_0)
+    inputs_id = inputs_id.to(device_0) ## 8*29
     emo_embed = emo_dict['<'+args.emotion+'>']
-    eos = [tokenizer.encoder["<|endoftext|>"]]
+
+    eos = [tokenizer.encoder["<|endoftext|>"]] ## [50256]
+
     mask = mask.to(device_0)
-    prev_input, past = model_train(inputs_id, past=None, attention_mask=mask)
+    
+    
+    output_train = model_train(inputs_id, past_key_values=None, attention_mask=mask)
+    past = output_train['past_key_values']
     inputs_id = inputs_id.to(device_1)
     mask = mask.to(device_1)
+    
     with torch.no_grad():
-        prev_input, past_bot = model_2(inputs_id, past=None, attention_mask=mask)
-    prev_input = torch.LongTensor([[eos] * inputs_id.shape[0]]).to(device_0)
+        # prev_input, past_bot = model_2(inputs_id, past=None, attention_mask=mask)
+      output2 = model_2(inputs_id, past_key_values=None, attention_mask=mask)
+      past_co = output2['past_key_values'] 
+    prev_input = torch.LongTensor([[eos] * inputs_id.shape[0]]).squeeze(0).to(device_0) # (8,1)
+    print(prev_input)
 
+
+    ######### all (8,) 
     temp_sentence = [[] for i in range(inputs_id.shape[0])]
     emotion_loss = [0 for i in range(inputs_id.shape[0])]
     coherence_loss = [0 for i in range(inputs_id.shape[0])]
+    #########
+
+
     append = torch.tensor([[1] for i in range(len(inputs_id))]).to(device_0)
-    mask = torch.cat((mask, append), 1)
-    for i in range(40):
-        prev_input = prev_input.to(device_0)
-        logits, past = model_train(prev_input, past=past)
+    mask = torch.cat((mask, append), 1) 
+    for i in range(40): # 40 words
+        prev_input = torch.cat((torch.full((1, n_tokens), 50256), prev_input), dim=1).to(device_0)
+        output = model_train(prev_input, past_key_values=past)
+        logits, past = output['logits'], output['past_key_values']
         prev_input = prev_input.to(device_1)
+        
 
         with torch.no_grad():
-            logits_bot, past_bot = model_2(prev_input, past=past_bot)
+            output = model_2(prev_input, past_key_values=past_co)
+            logits_co, past_co = output['logits'], output['past_key_values']
         mask = torch.cat((mask, append), 1)
+        # print(logits.size()) ## (1, 8, 1, 50257)
         logits = logits.squeeze(0).squeeze(1)
+        # print(logits.size()) ## (8, 50257)
         logits = logits / temperature
 
         logits = torch.softmax(logits, dim=-1)
         with torch.no_grad():
-            logits_bot = torch.softmax(logits_bot.squeeze(0).squeeze(1) / temperature, dim=-1)
-        prev_input = torch.multinomial(logits[:], num_samples=1)
+            logits_co = torch.softmax(logits_co.squeeze(0).squeeze(1) / temperature, dim=-1)
+        prev_input = torch.multinomial(logits[:], num_samples=1) #(8,1)
+        
 
         probs = []
         for j in range(inputs_id.shape[0]):
-            if i != 0 and temp_sentence[j][-1] == eos[0]: 
-                continue
-            probs.append(logits_bot[j][prev_input[j][0].item()].item())
+            if i != 0 and temp_sentence[j][-1] == eos[0]: continue
+            probs.append(logits_co[j][prev_input[j][0].item()].item()) ## compute conditional prob
         if len(probs) == 0:
             avg_prob = 0
         else:
@@ -192,27 +264,33 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
 
         for j in range(inputs_id.shape[0]):
             if i != 0 and temp_sentence[j][-1] == eos[0]: continue
+            ## prev_input.view(-1) ## size=(8)
             temp_loss = F.cross_entropy(logits[j].unsqueeze(0), prev_input.view(-1)[j].unsqueeze(0))
-            coherence_loss[j] += (logits_bot[j][prev_input[j][0].item()].item() - avg_prob) * temp_loss
+            coherence_loss[j] += (logits_co[j][prev_input[j][0].item()].item() - avg_prob) * temp_loss
             emotion_loss[j] += temp_loss
 
         if i == 0:
+            ## if first word of chatbot
             for j in range(inputs_id.shape[0]):
                 temp_sentence[j].append(prev_input[j].item())
-            continue
-        flag = 1
+            continue ## jump to second words
+        flag = 1 ## to ascertain whether all sentence complete
         
-        for j in range(0, inputs_id.shape[0]):
+        for j in range(inputs_id.shape[0]):
             if temp_sentence[j][-1] != eos[0]: 
                 flag = 0
                 temp_sentence[j].append(prev_input[j].item())
         if flag == 1: break
     decode_temp_sentence = [tokenizer.decode(x) for x in temp_sentence]
+
+    
+    
+
     eos = [tokenizer.encoder["<|endoftext|>"]]
     first_input = list(inputs_id.cpu().detach().numpy())
     for j in range(inputs_id.shape[0]):
         l = ll[j]
-        first_input[j] = first_input[j][:l+1]
+        first_input[j] = first_input[j][n_tokens:l+1]
         first_input[j][-1] = eos[0]
     inter_response = []
     if 'gpt' in args.inter:
@@ -228,13 +306,15 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     #         ii.append([tokenizer.decode(first_input[j][:-1]), a[j].replace('<|endoftext|>', '')])
     #     rps = ret_model.get_response(ii)
     #     k.extend([[x] for x in rps])
+    
+    
 
     #test_score += avg_prob
     sent_input = []
 
     for j in range(inputs_id.shape[0]*len(args.inter)):
         l = ll[j%inputs_id.shape[0]]
-        sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][:l]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
+        sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
     emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))
 
 
@@ -244,7 +324,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
 
     for e in embans:
         temp_score.append(np.sum((e - emo_embed)**2))
-       
+   
 
     score = [0 for i in range(len(temp_score) // len(args.inter))]
 
@@ -252,11 +332,11 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         for k in range(len(args.inter)):
             score[j] += temp_score[j + batch_size*k]
 #----------------specific word-------------------------------------------
-    score = np.array([0 for w in range(inputs_id.shape[0])])
-    for j in range(inputs_id.shape[0]*len(args.inter)):
-        for word in bad_dict.keys():
-            if re.search(r"\b{}\b".format(word.lower()), k[j].lower().strip()):
-                score[j%8] += 1
+    # score = np.array([0 for w in range(inputs_id.shape[0])])
+    # for j in range(inputs_id.shape[0]*len(args.inter)):
+    #     for word in bad_dict.keys():
+    #         if re.search(r"\b{}\b".format(word.lower()), k[j].lower().strip()):
+    #             score[j%8] += 1
 
     score = np.array(score) / len(args.inter)
     score = score - np.mean(score)
@@ -275,19 +355,34 @@ def main():
     parser.add_argument("--inter", type=str, default="gpt", nargs='+', required=True)
     args = parser.parse_args()
 
+
+
     os.makedirs('model/' + args.model, exist_ok=True)
     
 
     np.random.seed(100)
     torch.random.manual_seed(100)
     torch.cuda.manual_seed(100)
-    model_train = GPT2LMHeadModel.from_pretrained(args.model)
+    model_train = GPT2LMHeadModel.from_pretrained(args.model) ## gpt2
     model_2 = GPT2LMHeadModel.from_pretrained(args.model)
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
+    ### setting  softmax
+    n_tokens = 10
+    initialize_from_vocab = True
+    s_wte = SoftEmbedding(model_train.get_input_embeddings(), 
+                      n_tokens=n_tokens, 
+                      initialize_from_vocab=initialize_from_vocab)
+    model_train.set_input_embeddings(s_wte)
+
+    parameters = list(model_train.parameters())
+    for x in parameters[1:]:
+        x.requires_grad = False
+    ###
+
 
     if 'gpt' in args.inter:
-        model_bot = GPT2LMHeadModel.from_pretrained('models/medium/')
+        model_bot = GPT2LMHeadModel.from_pretrained('gpt2')
         model_bot.to(device_1)
         model_bot.eval()
     #
@@ -302,7 +397,8 @@ def main():
     #         from retrieval_model.retrieval_chatbot import Retrievalchatbot
     #         ret_model = Retrievalchatbot()
     writer = SummaryWriter('runs/'+args.writer+'/')
-    param_optimizer = list(model_train.named_parameters())
+    param_optimizer = list(model_train.named_parameters()) # 
+    
     no_decay = ['bias', 'ln']   # no decay for bias and LayerNorm (ln)
     optimizer_grouped_parameters = [
         {'params': [p for n, p in param_optimizer
@@ -311,8 +407,11 @@ def main():
         {'params': [p for n, p in param_optimizer
                     if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
 
-    optimizer = Adam(optimizer_grouped_parameters, 5e-6,
+
+    ## modified for soft prompt
+    optimizer = Adam(s_wte.parameters(), 5e-6,
                      max_grad_norm=1.0)
+    ##
 
     model_train.to(device_0)
     model_2.to(device_1)
@@ -320,11 +419,12 @@ def main():
     batch_size = 8
 
         
-
+    
 
     
-    post = post_set('data/train_raw.tsv', tokenizer)
+    post = post_set('data/train_raw.tsv', tokenizer, n_tokens)
     train_dataloader = DataLoader(post, batch_size=batch_size, shuffle=True, num_workers=2)
+
     batch = 0
     temp_score = 0
     loss = 0
@@ -333,8 +433,10 @@ def main():
     for global_step in range(1):
         model_train.train()
         for inputs_id, mask, ll in tqdm(train_dataloader):
+            
+            
             batch += 1
-            batch_loss, score, avg_prob = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size)
+            batch_loss, score, avg_prob = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens)
             loss += batch_loss
 
             test_score += avg_prob
@@ -348,7 +450,7 @@ def main():
                 loss = 0
             if batch % 20 == 0:
                 writer.add_scalar('reward', temp_score/batch_size/20, batch)
-                writer.add_scalar('test_reward', test_score/20, batch)
+                writer.add_scalar('test_reward', test_score/20, batch) # corherence
                 print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20/3, test_score/20))
                 test_score = 0
                 temp_score = 0
