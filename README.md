@@ -12,7 +12,9 @@ https://github.com/facebookresearch/EmpatheticDialogues.git
 
 #### Train
 ```
-python train_c.py --emotion <emotion> --writer <tensorboard writer> --save <save path> --model <pretrained model> --ra <ratio between 2 loss> --inter <interlocutor you want to interact> --sw <specific word>
+python train_c.py --emotion <emotion> --writer <tensorboard writer>  
+--save <save path> --model <pretrained model> --ra <ratio between 2 loss> 
+--inter <interlocutor you want to interact> --sw <specific word>
 ```
 
 #### Test
