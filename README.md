@@ -1,3 +1,6 @@
+This project is modified from https://github.com/jacksukk/Chatbot-Project
+
+
 We adapt the DialoGPT(https://github.com/microsoft/DialoGPT) model to be our chatbot model.
 ## Update
 A new version is already implemented in branch "dev".
