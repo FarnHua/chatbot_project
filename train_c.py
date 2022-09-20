@@ -2,7 +2,7 @@ import os
 import numpy as np
 import json
 from torch.utils.data import DataLoader
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 from os.path import join
 import re
 from argparse import ArgumentParser
@@ -230,7 +230,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
       output2 = model_2(inputs_id, past_key_values=None, attention_mask=mask)
       past_co = output2['past_key_values'] 
     prev_input = torch.LongTensor([[eos] * inputs_id.shape[0]]).squeeze(0).to(device_0) # (8,1)
-    print(prev_input)
+
 
 
     ######### all (8,) 
@@ -243,7 +243,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     append = torch.tensor([[1] for i in range(len(inputs_id))]).to(device_0)
     mask = torch.cat((mask, append), 1) 
     for i in range(40): # 40 words
-        prev_input = torch.cat((torch.full((1, n_tokens), 50256), prev_input), dim=1).to(device_0)
+        
         output = model_train(prev_input, past_key_values=past)
         logits, past = output['logits'], output['past_key_values']
         prev_input = prev_input.to(device_1)
@@ -301,7 +301,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     first_input = list(inputs_id.cpu().detach().numpy())
     for j in range(inputs_id.shape[0]):
         l = ll[j]
-        first_input[j] = first_input[j][n_tokens:l+1]
+        first_input[j] = first_input[j][n_tokens:n_tokens+l+1]
         first_input[j][-1] = eos[0]
     inter_response = []
     if 'gpt' in args.inter:
@@ -325,7 +325,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
 
     for j in range(inputs_id.shape[0]*len(args.inter)):
         l = ll[j%inputs_id.shape[0]]
-        sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
+        sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:n_tokens + l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
     emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))
 
     
@@ -357,9 +357,8 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
         loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
     
-    if args.sw:
-        return loss, sum(score), avg_prob
-    return loss, sum(temp_score), avg_prob
+    
+    return loss, sum(score), avg_prob
 def main():
     parser = ArgumentParser()
     parser.add_argument("--emotion", type=str, default="angry")
@@ -441,7 +440,7 @@ def main():
     #     with torch.no_grad():
     #         from retrieval_model.retrieval_chatbot import Retrievalchatbot
     #         ret_model = Retrievalchatbot()
-    writer = SummaryWriter('runs/'+args.writer+'/')
+    # writer = SummaryWriter('runs/'+args.writer+'/')
     param_optimizer = list(model_train.named_parameters()) # 
     
     no_decay = ['bias', 'ln']   # no decay for bias and LayerNorm (ln)
@@ -490,13 +489,13 @@ def main():
             if batch % 4 == 0:
                 loss.backward()
                 optimizer.step()
-                writer.add_scalar('loss', loss, batch)
+                # writer.add_scalar('loss', loss, batch) 
                 wandb.log({"loss": loss})
                 optimizer.zero_grad()  
                 loss = 0
             if batch % 20 == 0:
-                writer.add_scalar('reward', temp_score/batch_size/20, batch)
-                writer.add_scalar('coherence', test_score/20, batch) # corherence
+                # writer.add_scalar('reward', temp_score/batch_size/20, batch)
+                # writer.add_scalar('coherence', test_score/20, batch) # corherence
 
                 wandb.log({"reward":  temp_score/batch_size/20, 'coherence': test_score/20})
                 # print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20/3, test_score/20))
