@@ -242,6 +242,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
 
     append = torch.tensor([[1] for i in range(len(inputs_id))]).to(device_0)
     mask = torch.cat((mask, append), 1) 
+    coh_score = 0
     for i in range(40): # 40 words
         
         output = model_train(prev_input, past_key_values=past)
@@ -272,6 +273,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
             avg_prob = 0
         else:
             avg_prob = sum(probs) / len(probs)
+            coh_score += avg_prob
 
         for j in range(inputs_id.shape[0]):
             if i != 0 and temp_sentence[j][-1] == eos[0]: continue
@@ -357,8 +359,9 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
         loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
     
-    
-    return loss, sum(score), avg_prob
+    if args.sw:
+        return loss, sum(score), coh_score
+    return loss, sum(temp_score), coh_score
 def main():
     parser = ArgumentParser()
     parser.add_argument("--emotion", type=str, default="angry")
@@ -480,10 +483,10 @@ def main():
             
             
             batch += 1
-            batch_loss, score, avg_prob = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens)
+            batch_loss, score, coh_score = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens)
             loss += batch_loss
 
-            test_score += avg_prob
+            test_score += coh_score
             temp_score += score
 
             if batch % 4 == 0:

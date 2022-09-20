@@ -3,10 +3,13 @@ This project is modified from https://github.com/jacksukk/Chatbot-Project
 
 We adapt the DialoGPT(https://github.com/microsoft/DialoGPT) model to be our chatbot model.
 ## Get started
-#### Clone the repository
+### 1. example.ipynb
+
+### 2. Clone the repository
 ```
 git clone https://github.com/FarnHua/chatbot_project.git
 ```
+
 #### Corpus
 https://github.com/facebookresearch/EmpatheticDialogues.git
 
