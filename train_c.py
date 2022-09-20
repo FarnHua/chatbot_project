@@ -20,6 +20,11 @@ from lsp_model.optim import Adam
 
 import string
 from tqdm import tqdm
+
+import wandb
+
+wandb.login()
+
 torch.manual_seed(100)
 emo_dict = {
                 "<afraid>": [-0.12, 0.79], 
@@ -323,7 +328,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
     emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))
 
-
+    
     temp_score = []
 
 #-----------------emotion-----------------------------
@@ -351,6 +356,9 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     for j in range(inputs_id.shape[0]):
         loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
         loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
+    
+    if args.sw:
+        return loss, sum(score), avg_prob
     return loss, sum(temp_score), avg_prob
 def main():
     parser = ArgumentParser()
@@ -365,14 +373,34 @@ def main():
     args = parser.parse_args()
 
 
+    wandb.init(
+      # Set the project where this run will be logged
+      project="chatbot_softprompt", 
+      # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
+      name=f"{args.save}", 
+      # Track hyperparameters and run metadata
+      config={
+      "lr": 5e-6,
+      "model": args.model,
+      "ra": args.ra,
+      "inter": args.inter,
+      "n_tokens": args.n_tokens,
+      "specific_word": args.sw,
+      "emotion": args.emotion,
+      "epoch": 1,
+      "seed": 100,
+      "batch_size": 8
+      })
 
+
+    config = wandb.config
     os.makedirs('model/' + args.model, exist_ok=True)
     
     
 
-    np.random.seed(100)
-    torch.random.manual_seed(100)
-    torch.cuda.manual_seed(100)
+    np.random.seed(config.seed)
+    torch.random.manual_seed(config.seed)
+    torch.cuda.manual_seed(config.seed)
     model_train = GPT2LMHeadModel.from_pretrained(args.model) ## gpt2
     model_2 = GPT2LMHeadModel.from_pretrained(args.model)
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
@@ -426,14 +454,14 @@ def main():
 
 
     ## modified for soft prompt
-    optimizer = Adam(s_wte.parameters(), 5e-6,
+    optimizer = Adam(s_wte.parameters(), config.lr,
                      max_grad_norm=1.0)
     ##
 
     model_train.to(device_0)
     model_2.to(device_1)
     model_2.eval()
-    batch_size = 8
+    batch_size = config.batch_size
 
         
     
@@ -463,12 +491,15 @@ def main():
                 loss.backward()
                 optimizer.step()
                 writer.add_scalar('loss', loss, batch)
+                wandb.log({"loss": loss})
                 optimizer.zero_grad()  
                 loss = 0
             if batch % 20 == 0:
                 writer.add_scalar('reward', temp_score/batch_size/20, batch)
-                writer.add_scalar('test_reward', test_score/20, batch) # corherence
-                print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20/3, test_score/20))
+                writer.add_scalar('coherence', test_score/20, batch) # corherence
+
+                wandb.log({"reward":  temp_score/batch_size/20, 'coherence': test_score/20})
+                # print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20/3, test_score/20))
                 test_score = 0
                 temp_score = 0
             if batch % 2500 == 0:
