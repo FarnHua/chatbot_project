@@ -414,7 +414,7 @@ def main():
             for w in data:
                 word_dict[w] = 1
 
-    ### setting  softmax
+    ### setting  softprompt
     n_tokens = args.n_tokens
     initialize_from_vocab = True
     s_wte = SoftEmbedding(model_train.get_input_embeddings(), 
@@ -505,9 +505,10 @@ def main():
                 test_score = 0
                 temp_score = 0
             if batch % 2500 == 0:
+                name = 'transformer.wte.learned_embedding'
+                
                 torch.save(
-                    {k: (v.cpu() if v is not None else None)  # save to cpu tensors
-                        for k, v in model_train.state_dict().items()},
+                    {name: (model_train.state_dict()[name].cpu())},
                     join(f'model/{args.save}/',
                             f'{args.save}-{batch}.pkl'))
 
