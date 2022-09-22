@@ -86,7 +86,7 @@ class SoftEmbedding(nn.Module):
         self.wte = wte
         self.n_tokens = n_tokens
         self.learned_embedding = nn.parameter.Parameter(self.initialize_embedding(wte, n_tokens, random_range, initialize_from_vocab))
-        ## (20,768)
+        ## (10,768)
         
             
     def initialize_embedding(self, 
@@ -346,6 +346,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
             score[j] += temp_score[j + batch_size*k]
 #----------------specific word-------------------------------------------
     if args.sw:
+        assert(0)
         score = np.array([0 for w in range(inputs_id.shape[0])])
         for j in range(inputs_id.shape[0]*len(args.inter)):
             for word in word_dict.keys():
@@ -359,7 +360,8 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
         loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
     
-    if args.sw:
+    if args.sw != None:
+        assert(0)
         return loss, sum(score), coh_score
     return loss, sum(temp_score), coh_score
 def main():
@@ -379,21 +381,11 @@ def main():
       # Set the project where this run will be logged
       project="chatbot_softprompt", 
       # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
-      name=f"{args.save}", 
-      # Track hyperparameters and run metadata
-      config={
-      "lr": 5e-6,
-      "model": args.model,
-      "ra": args.ra,
-      "inter": args.inter,
-      "n_tokens": args.n_tokens,
-      "specific_word": args.sw,
-      "emotion": args.emotion,
-      "epoch": 1,
-      "seed": 100,
-      "batch_size": 8
-      })
-
+      name=f"{args.save}"
+      )
+    # Track hyperparameters and run metadata
+    wandb.config.update(args)
+    wandb.config.update({"lr": 5e-6, 'epoch':1, "seed":100, 'batch_size':8, 'init_from_vocab': False})
 
     config = wandb.config
     os.makedirs('model/' + args.model, exist_ok=True)
@@ -406,7 +398,7 @@ def main():
     model_train = GPT2LMHeadModel.from_pretrained(args.model) ## gpt2
     model_2 = GPT2LMHeadModel.from_pretrained(args.model)
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-
+    
     if args.sw:
         with open('specific_word.json') as f:
             data = json.load(f)
@@ -416,7 +408,7 @@ def main():
 
     ### setting  softprompt
     n_tokens = args.n_tokens
-    initialize_from_vocab = True
+    initialize_from_vocab = config.init_from_vocab
     s_wte = SoftEmbedding(model_train.get_input_embeddings(), 
                       n_tokens=n_tokens, 
                       initialize_from_vocab=initialize_from_vocab)
@@ -444,19 +436,29 @@ def main():
     #         from retrieval_model.retrieval_chatbot import Retrievalchatbot
     #         ret_model = Retrievalchatbot()
     # writer = SummaryWriter('runs/'+args.writer+'/')
-    param_optimizer = list(model_train.named_parameters()) # 
-    
-    no_decay = ['bias', 'ln']   # no decay for bias and LayerNorm (ln)
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer
-                    if not any(nd in n for nd in no_decay)],
-        'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer
-                    if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
 
+    ################# optmizer #################### 
+    # param_optimizer = list(model_train.named_parameters()) # 
+    
+    # no_decay = ['bias', 'ln']   # no decay for bias and LayerNorm (ln)
+    # optimizer_grouped_parameters = [
+    #     {'params': [p for n, p in param_optimizer
+    #                 if not any(nd in n for nd in no_decay)],
+    #     'weight_decay': 0.01},
+    #     {'params': [p for n, p in param_optimizer
+    #                 if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
+    ############################################
 
     ## modified for soft prompt
-    optimizer = Adam(s_wte.parameters(), config.lr,
+    # print(list(s_wte.parameters()))
+    # for n, p in s_wte.state_dict().items():
+    #   print(n, p.size())
+    # print(parameters[0])
+    # print(sum(p.numel() for p in model_train.parameters()))
+    # print(sum(p.numel() for p in model_train.parameters() if p.requires_grad))
+    # assert(0)
+    wandb.config.update({'total_update_param': sum(p.numel() for p in model_train.parameters() if p.requires_grad)})
+    optimizer = Adam([s_wte.learned_embedding], config.lr,
                      max_grad_norm=1.0)
     ##
 
@@ -477,11 +479,9 @@ def main():
     loss = 0
    
     test_score = 0
-    for global_step in range(1):
+    for global_step in range(config.epoch):
         model_train.train()
         for inputs_id, mask, ll in tqdm(train_dataloader):
-            
-            
             batch += 1
             batch_loss, score, coh_score = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens)
             loss += batch_loss
@@ -501,12 +501,11 @@ def main():
                 # writer.add_scalar('coherence', test_score/20, batch) # corherence
 
                 wandb.log({"reward":  temp_score/batch_size/20, 'coherence': test_score/20})
-                # print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20/3, test_score/20))
+                print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20/3, test_score/20))
                 test_score = 0
                 temp_score = 0
-            if batch % 2500 == 0:
-                name = 'transformer.wte.learned_embedding'
-                
+            if batch % 1000 == 0:
+                name = 'transformer.wte.learned_embedding' 
                 torch.save(
                     {name: (model_train.state_dict()[name].cpu())},
                     join(f'model/{args.save}/',

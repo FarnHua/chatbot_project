@@ -26,7 +26,7 @@ class post_set(Dataset):
             m.append(temp_mask)
             
            # print(srcs)
-        print(len(temp))
+        # print(len(temp))
         self.post = pad_sequence([x for x in temp], batch_first=True, padding_value=0)
         self.mask = pad_sequence([x for x in m], batch_first=True, padding_value=0)
     def __getitem__(self, index):
