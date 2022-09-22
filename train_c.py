@@ -506,7 +506,7 @@ def main():
                 name = 'transformer.wte.learned_embedding' 
                 torch.save(
                     {name: (model_train.state_dict()[name].cpu())},
-                    join(f'model/{args.save}/',
+                    join(f'model/save/',
                             f'{args.save}-{batch}.pkl'))
     wandb.finish()
 if __name__ == "__main__":

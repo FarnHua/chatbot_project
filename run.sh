@@ -1,1 +1,1 @@
-python train_c.py --emotion hopeful --save save/exp1 --model gpt2 --inter gpt
+python train_c.py --emotion hopeful --save exp1 --model gpt2 --inter gpt
