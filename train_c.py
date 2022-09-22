@@ -319,8 +319,6 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     #         ii.append([tokenizer.decode(first_input[j][:-1]), a[j].replace('<|endoftext|>', '')])
     #     rps = ret_model.get_response(ii)
     #     k.extend([[x] for x in rps])
-    
-    
 
     #test_score += avg_prob
     sent_input = []
@@ -510,6 +508,6 @@ def main():
                     {name: (model_train.state_dict()[name].cpu())},
                     join(f'model/{args.save}/',
                             f'{args.save}-{batch}.pkl'))
-
+    wandb.finish()
 if __name__ == "__main__":
     main()
