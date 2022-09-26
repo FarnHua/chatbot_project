@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import random
 import json
 from torch.utils.data import DataLoader
 # from tensorboardX import SummaryWriter
@@ -24,6 +25,15 @@ from tqdm import tqdm
 import wandb
 
 wandb.login()
+
+def check_valid(param_1, param_2) :
+    for i in range(len(param_1)) :
+        if i :
+            idx = 0
+            for x in param_1 :
+                # print(x, param_2[idx])
+                assert(x.item() == param_2[idx].item())
+                idx += 1
 
 torch.manual_seed(100)
 emo_dict = {
@@ -412,6 +422,8 @@ def main():
     model_train.set_input_embeddings(s_wte)
 
     parameters = list(model_train.parameters())
+    parameters_check = list(model_train.parameters())
+
     for x in parameters[1:]:
         x.requires_grad = False
     ###
@@ -486,6 +498,7 @@ def main():
             test_score += coh_score
             temp_score += score
 
+
             if batch % 4 == 0:
                 loss.backward()
                 optimizer.step()
@@ -496,13 +509,17 @@ def main():
             if batch % 20 == 0:
                 # writer.add_scalar('reward', temp_score/batch_size/20, batch)
                 # writer.add_scalar('coherence', test_score/20, batch) # corherence
-
+                
+                
                 wandb.log({"reward":  temp_score/batch_size/20, 'coherence': test_score/20})
                 print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20/3, test_score/20))
                 test_score = 0
                 temp_score = 0
             if batch % 1000 == 0:
                 name = 'transformer.wte.learned_embedding' 
+                idx = random.randint(1, len(parameters_check) - 1)
+                param = list(model_train.parameters())
+                check_valid(param[idx], parameters_check[idx])
                 torch.save(
                     {name: (model_train.state_dict()[name].cpu())},
                     join(f'model/save/',
