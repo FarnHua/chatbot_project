@@ -321,47 +321,46 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     #     k.extend([[x] for x in rps])
 
     #test_score += avg_prob
-    sent_input = []
+######## emotion
+#     sent_input = []
 
-    for j in range(inputs_id.shape[0]*len(args.inter)):
-        l = ll[j%inputs_id.shape[0]]
-        sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:n_tokens + l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
-    emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))
+#     for j in range(inputs_id.shape[0]*len(args.inter)):
+#         l = ll[j%inputs_id.shape[0]]
+#         sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:n_tokens + l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
+#     emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))
 
     
-    temp_score = []
+#     temp_score = []
 
-#-----------------emotion-----------------------------
+# #-----------------emotion-----------------------------
 
-    for e in embans:
-        temp_score.append(np.sum((e - emo_embed)**2))
+#     for e in embans:
+#         temp_score.append(np.sum((e - emo_embed)**2))
    
 
-    score = [0 for i in range(len(temp_score) // len(args.inter))]
+    # score = [0 for i in range(len(temp_score) // len(args.inter))]
 
-    for j in range(len(temp_score) // len(args.inter)):
-        for k in range(len(args.inter)):
-            score[j] += temp_score[j + batch_size*k]
+    # for j in range(len(temp_score) // len(args.inter)):
+    #     for k in range(len(args.inter)):
+    #         score[j] += temp_score[j + batch_size*k]
 #----------------specific word-------------------------------------------
     if args.sw:
-        assert(0)
         score = np.array([0 for w in range(inputs_id.shape[0])])
         for j in range(inputs_id.shape[0]*len(args.inter)):
             for word in word_dict.keys():
-                if re.search(r"\b{}\b".format(word.lower()), k[j].lower().strip()):
+                if re.search(r"\b{}\b".format(word.lower()), inter_response[j][0].lower().strip()):
                     score[j%8] += 1
 
     score = np.array(score) / len(args.inter)
-    score = score - np.mean(score)
+    # score = score - np.mean(score)
 
     for j in range(inputs_id.shape[0]):
         loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
         loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
     
     if args.sw != None:
-        assert(0)
         return loss, sum(score), coh_score
-    return loss, sum(temp_score), coh_score
+    # return loss, sum(temp_score), coh_score
 def main():
     parser = ArgumentParser()
     parser.add_argument("--emotion", type=str, default="angry")
@@ -393,9 +392,9 @@ def main():
     np.random.seed(config.seed)
     torch.random.manual_seed(config.seed)
     torch.cuda.manual_seed(config.seed)
-    model_train = GPT2LMHeadModel.from_pretrained(args.model) ## gpt2
+    model_train = GPT2LMHeadModel.from_pretrained(args.model) 
     model_2 = GPT2LMHeadModel.from_pretrained(args.model)
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    tokenizer = GPT2Tokenizer.from_pretrained(args.model)
     
     if args.sw:
         with open('specific_word.json') as f:
@@ -419,7 +418,7 @@ def main():
 
 
     if 'gpt' in args.inter:
-        model_bot = GPT2LMHeadModel.from_pretrained('gpt2')
+        model_bot = GPT2LMHeadModel.from_pretrained(args.model)
         model_bot.to(device_1)
         model_bot.eval()
     #
@@ -509,6 +508,6 @@ def main():
                     join(f'model/save/',
                             f'{args.save}-{batch}.pkl'))
     wandb.finish()
-    
+
 if __name__ == "__main__":
     main()
