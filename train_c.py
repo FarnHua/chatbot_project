@@ -25,16 +25,6 @@ from tqdm import tqdm
 import wandb
 
 wandb.login()
-
-def check_valid(param_1, param_2) :
-    for i in range(len(param_1)) :
-        if i :
-            idx = 0
-            for x in param_1 :
-                # print(x, param_2[idx])
-                assert(x.item() == param_2[idx].item())
-                idx += 1
-
 torch.manual_seed(100)
 emo_dict = {
                 "<afraid>": [-0.12, 0.79], 
@@ -220,7 +210,7 @@ def make_response(model, sentences, tokenizer, first_input):
             if flag == 1: break
     return [[tokenizer.decode(x).replace('<|endoftext|>', '')] for x in temp_sentence]
     
-def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens):
+def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward):
     loss = 0
     inputs_id = inputs_id.to(device_0) ## 8*29
     emo_embed = emo_dict['<'+args.emotion+'>']
@@ -318,6 +308,16 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     inter_response = []
     if 'gpt' in args.inter:
         inter_response.extend(make_response(model_bot, decode_temp_sentence, tokenizer, first_input))
+    if batch % 8 == 0:
+        print(f'batch: {batch}')
+        inpu_t = [tokenizer.decode(x[n_tokens:]) for x in inputs_id]
+        my_table = wandb.Table(columns=['batch','input', 'chatbot', 'inter']) 
+        for i in range(inputs_id.shape[0]):
+            print(inpu_t[i])
+            data = [batch,inpu_t[i] ,decode_temp_sentence[i], inter_response[i][0]]
+            my_table.add_data(*data)
+        print('************** save to table **********')
+        wandb.log({'generation table': my_table}, commit=False)
     # if 'google' in args.inter:
     #     #k = []
     #     for j in range(inputs_id.shape[0]):
@@ -331,49 +331,54 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     #     k.extend([[x] for x in rps])
 
     #test_score += avg_prob
-######## emotion
-#     sent_input = []
 
-#     for j in range(inputs_id.shape[0]*len(args.inter)):
-#         l = ll[j%inputs_id.shape[0]]
-#         sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:n_tokens + l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
-#     emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))
+#################################################################################
+#                                                                               #
+#                   Reward                                                      #
+#                                                                               #
+#################################################################################
+    if reward == 'emotion': 
+        sent_input = []
 
-    
-#     temp_score = []
+        for j in range(inputs_id.shape[0]*len(args.inter)):
+            l = ll[j%inputs_id.shape[0]]
+            sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:n_tokens + l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
+        emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))      
+        temp_score = []
+        for e in embans:
+            temp_score.append(np.sum((e - emo_embed)**2))
 
-# #-----------------emotion-----------------------------
+        score = [0 for i in range(len(temp_score) // len(args.inter))]
 
-#     for e in embans:
-#         temp_score.append(np.sum((e - emo_embed)**2))
-   
+        for j in range(len(temp_score) // len(args.inter)):
+            for k in range(len(args.inter)):
+                score[j] += temp_score[j + batch_size*k]
 
-    # score = [0 for i in range(len(temp_score) // len(args.inter))]
-
-    # for j in range(len(temp_score) // len(args.inter)):
-    #     for k in range(len(args.inter)):
-    #         score[j] += temp_score[j + batch_size*k]
-#----------------specific word-------------------------------------------
-    if args.sw:
+    elif reward == 'sw':
         score = np.array([0 for w in range(inputs_id.shape[0])])
         for j in range(inputs_id.shape[0]*len(args.inter)):
             for word in word_dict.keys():
                 if re.search(r"\b{}\b".format(word.lower()), inter_response[j][0].lower().strip()):
                     score[j%8] += 1
+    elif reward == 'length':
+        pass
 
     score = np.array(score) / len(args.inter)
-    # score = score - np.mean(score)
+    score = score - np.mean(score)
 
     for j in range(inputs_id.shape[0]):
         loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
         loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
     
-    if args.sw != None:
+    if reward == 'sw':
         return loss, sum(score), coh_score
-    # return loss, sum(temp_score), coh_score
+    elif reward == 'emotion':
+        return loss, sum(temp_score), coh_score
+    elif reward == 'length':
+        pass
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--emotion", type=str, default="angry")
+    parser.add_argument("--emotion", type=str, default=None)
     parser.add_argument("--writer", type=str, default="")
     parser.add_argument("--save", type=str, default="model/save/")
     parser.add_argument("--model", type=str, default='model/turn')
@@ -383,6 +388,11 @@ def main():
     parser.add_argument("--sw", type=str, default=None)
     args = parser.parse_args()
 
+    if not args.emotion and not args.sw:
+        print('Please enter emotion or specific word')
+        assert(0)
+    else:
+        reward = 'sw' if args.sw else 'emotion' 
 
     wandb.init(
       # Set the project where this run will be logged
@@ -392,7 +402,9 @@ def main():
       )
     # Track hyperparameters and run metadata
     wandb.config.update(args)
-    wandb.config.update({"lr": 5e-6, 'epoch':1, "seed":100, 'batch_size':8, 'init_from_vocab': False})
+    wandb.config.update({"lr": 5e-6, 'epoch':1, "seed":100, 'batch_size':4, 'init_from_vocab': False})
+
+    
 
     config = wandb.config
     os.makedirs('model/' + args.model, exist_ok=True)
@@ -422,7 +434,7 @@ def main():
     model_train.set_input_embeddings(s_wte)
 
     parameters = list(model_train.parameters())
-    parameters_check = list(model_train.parameters())
+    # parameters_check = list(model_train.parameters())
 
     for x in parameters[1:]:
         x.requires_grad = False
@@ -492,34 +504,34 @@ def main():
         model_train.train()
         for inputs_id, mask, ll in tqdm(train_dataloader):
             batch += 1
-            batch_loss, score, coh_score = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens)
+            batch_loss, score, coh_score = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward)
             loss += batch_loss
 
             test_score += coh_score
             temp_score += score
 
 
-            if batch % 4 == 0:
+            if batch % 8 == 0:
                 loss.backward()
                 optimizer.step()
                 # writer.add_scalar('loss', loss, batch) 
                 wandb.log({"loss": loss})
                 optimizer.zero_grad()  
                 loss = 0
-            if batch % 20 == 0:
+            if batch % 40 == 0:
                 # writer.add_scalar('reward', temp_score/batch_size/20, batch)
                 # writer.add_scalar('coherence', test_score/20, batch) # corherence
                 
                 
-                wandb.log({"reward":  temp_score/batch_size/20, 'coherence': test_score/20})
-                print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20/3, test_score/20))
+                wandb.log({"reward":  temp_score/batch_size/40, 'coherence': test_score/40})
+                print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/40/3, test_score/40))
                 test_score = 0
                 temp_score = 0
             if batch % 1000 == 0:
                 name = 'transformer.wte.learned_embedding' 
-                idx = random.randint(1, len(parameters_check) - 1)
-                param = list(model_train.parameters())
-                check_valid(param[idx], parameters_check[idx])
+                # idx = random.randint(1, len(parameters_check) - 1)
+                # param = list(model_train.parameters())
+                # check_valid(param[idx], parameters_check[idx])
                 torch.save(
                     {name: (model_train.state_dict()[name].cpu())},
                     join(f'model/save/',
