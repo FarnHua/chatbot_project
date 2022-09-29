@@ -1,0 +1,12 @@
+
+  0%|                                                                               | 0/11570 [00:00<?, ?it/s][34m[1mwandb[39m[22m: Currently logged in as: [33mchihuahua[39m. Use [1m`wandb login --relogin`[22m to force relogin
+[34m[1mwandb[39m[22m: Currently logged in as: [33mchihuahua[39m. Use [1m`wandb login --relogin`[22m to force relogin
+  0%|                                                                               | 0/11570 [00:14<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/chihuahuaiscute/Desktop/cshw/chatbot_project/train_c.py", line 570, in <module>
+    main()
+  File "/Users/chihuahuaiscute/Desktop/cshw/chatbot_project/train_c.py", line 535, in main
+    batch_loss, score, coh_score = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward)
+  File "/Users/chihuahuaiscute/Desktop/cshw/chatbot_project/train_c.py", line 349, in train
+    emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))
+NameError: name 're_emo_score' is not defined

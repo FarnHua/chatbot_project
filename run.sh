@@ -1,2 +1,2 @@
-python train_c.py --emotion hopeful --save dialog_hopeful --model microsoft/DialoGPT-medium\
- --inter gpt --n_tokens 50
+python train_c.py --len len --save dialog_hopeful --model gpt2\
+ --inter gpt --n_tokens 5

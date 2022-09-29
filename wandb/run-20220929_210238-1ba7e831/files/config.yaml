@@ -1,0 +1,81 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.12.21
+    framework: huggingface
+    huggingface_version: 4.18.0
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.9.12
+    start_time: 1664456558
+    t:
+      1:
+      - 1
+      - 2
+      - 3
+      - 11
+      - 49
+      - 55
+      2:
+      - 1
+      - 2
+      - 3
+      - 11
+      - 49
+      - 55
+      3:
+      - 13
+      4: 3.9.12
+      5: 0.12.21
+      6: 4.18.0
+      8:
+      - 4
+      - 5
+batch_size:
+  desc: null
+  value: 4
+emotion:
+  desc: null
+  value: null
+epoch:
+  desc: null
+  value: 1
+init_from_vocab:
+  desc: null
+  value: false
+inter:
+  desc: null
+  value:
+  - gpt
+len:
+  desc: null
+  value: len
+lr:
+  desc: null
+  value: 5.0e-06
+model:
+  desc: null
+  value: gpt2
+n_tokens:
+  desc: null
+  value: 5
+ra:
+  desc: null
+  value: 3
+save:
+  desc: null
+  value: dialog_hopeful
+seed:
+  desc: null
+  value: 100
+sw:
+  desc: null
+  value: null
+total_update_param:
+  desc: null
+  value: 3840
+writer:
+  desc: null
+  value: ''

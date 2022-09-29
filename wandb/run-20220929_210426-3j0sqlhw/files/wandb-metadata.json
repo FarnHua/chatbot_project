@@ -1,0 +1,33 @@
+{
+    "os": "macOS-12.4-arm64-arm-64bit",
+    "python": "3.9.12",
+    "heartbeatAt": "2022-09-29T13:04:27.049041",
+    "startedAt": "2022-09-29T13:04:26.225233",
+    "docker": null,
+    "cpu_count": 8,
+    "cuda": null,
+    "args": [
+        "--len",
+        "len",
+        "--save",
+        "dialog_hopeful",
+        "--model",
+        "gpt2",
+        "--inter",
+        "gpt",
+        "--n_tokens",
+        "5"
+    ],
+    "state": "running",
+    "program": "/Users/chihuahuaiscute/Desktop/cshw/chatbot_project/train_c.py",
+    "codePath": "train_c.py",
+    "git": {
+        "remote": "https://github.com/FarnHua/chatbot_project.git",
+        "commit": "9a85f9105c2ce3f7be65cf94bc08c56c2d79f065"
+    },
+    "email": null,
+    "root": "/Users/chihuahuaiscute/Desktop/cshw/chatbot_project",
+    "host": "zhengchengjudeMacBook-Pro.local",
+    "username": "chihuahuaiscute",
+    "executable": "/opt/homebrew/Caskroom/miniforge/base/envs/venv/bin/python"
+}
