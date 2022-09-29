@@ -394,7 +394,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         return loss, sum(temp_score), coh_score
     elif reward == 'length':
         test_reward = np.mean(test_reward)
-        return loss, sum(temp_score), test_reward
+        return loss, sum(score), test_reward
 
 def main():
     parser = ArgumentParser()
