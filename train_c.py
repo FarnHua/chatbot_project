@@ -237,6 +237,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     temp_sentence = [[] for i in range(inputs_id.shape[0])]
     emotion_loss = [0 for i in range(inputs_id.shape[0])]
     coherence_loss = [0 for i in range(inputs_id.shape[0])]
+    test_reward = [1 for i in range(inputs_id.shape[0])]
     #########
 
 
@@ -269,6 +270,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         for j in range(inputs_id.shape[0]):
             if i != 0 and temp_sentence[j][-1] == eos[0]: continue
             probs.append(logits_co[j][prev_input[j][0].item()].item()) ## compute conditional prob
+            test_reward[j] *= logits_co[j][prev_input[j][0].item()].item()
         if len(probs) == 0:
             avg_prob = 0
         else:
@@ -294,7 +296,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
                 flag = 0
                 temp_sentence[j].append(prev_input[j].item())
         if flag == 1: break
-    decode_temp_sentence = [tokenizer.decode(x) for x in temp_sentence]
+    decode_temp_sentence = [tokenizer.decode(x).replace(' ', '') for x in temp_sentence]
 
     
     
@@ -337,6 +339,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
 #                   Reward                                                      #
 #                                                                               #
 #################################################################################
+    score = None
     if reward == 'emotion': 
         sent_input = []
 
@@ -360,22 +363,39 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
             for word in word_dict.keys():
                 if re.search(r"\b{}\b".format(word.lower()), inter_response[j][0].lower().strip()):
                     score[j%8] += 1
+
     elif reward == 'length':
-        pass
+        sent_input = []
+        for j in range(inputs_id.shape[0]*len(args.inter)):
+            l = ll[j%inputs_id.shape[0]]
+            sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][:l].tolist()), decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j][0]])
+        
+        score = []
+        for sens in sent_input:
+            sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
+            score.append(len(sens[2]))
+
+        test_len = [len(s) for s in temp_sentence]
+        test_reward = [test_reward[i] ** (1/test_len[i]) for i in range(inputs_id.shape[0])]
 
     score = np.array(score) / len(args.inter)
     score = score - np.mean(score)
 
     for j in range(inputs_id.shape[0]):
-        loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
-        loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
+        if reward == 'length' or 'sw':
+            loss += (score[j]) * emotion_loss[j]
+        else:
+            loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
+        # loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
     
     if reward == 'sw':
         return loss, sum(score), coh_score
     elif reward == 'emotion':
         return loss, sum(temp_score), coh_score
     elif reward == 'length':
-        pass
+        test_reward = np.mean(test_reward)
+        return loss, sum(temp_score), test_reward
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("--emotion", type=str, default=None)
@@ -398,7 +418,8 @@ def main():
       # Set the project where this run will be logged
       project="chatbot_softprompt", 
       # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
-      name=f"{args.save}"
+      name=f"{args.save}",
+      entity="chatbot_ntu"
       )
     # Track hyperparameters and run metadata
     wandb.config.update(args)
