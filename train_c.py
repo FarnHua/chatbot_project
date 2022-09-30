@@ -8,7 +8,7 @@ from os.path import join
 import re
 from argparse import ArgumentParser
 
-# from Emo_detector.detect_emotion import re_emo_score, prepare_model
+from Emo_detector.detect_emotion import re_emo_score, prepare_model
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 import tqdm
 import torch
@@ -380,13 +380,13 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         test_reward = [test_reward[i] ** (1/test_len[i]) for i in range(inputs_id.shape[0])]
 
     score = np.array(score) / len(args.inter)
-    score = score - np.mean(score)
-
+    # score = score - np.mean(score)
+    mean_score = np.mean(score)
     for j in range(inputs_id.shape[0]):
         if reward == 'length' or 'sw':
-            loss += (score[j]) * emotion_loss[j]
+            loss += (score[j] - mean_score) * emotion_loss[j]
         else:
-            loss -= (score[j]) * emotion_loss[j] #/ len(temp_sentence[j])
+            loss -= (score[j] - mean_score) * emotion_loss[j] #/ len(temp_sentence[j])
         # loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
     
     if reward == 'sw':
@@ -431,7 +431,7 @@ def main():
       )
     # Track hyperparameters and run metadata
     wandb.config.update(args)
-    wandb.config.update({"lr": 5e-6, 'epoch':1, "seed":100, 'batch_size':4, 'init_from_vocab': False})
+    wandb.config.update({"lr": 5e-6, 'epoch':2, "seed":100, 'batch_size':4, 'init_from_vocab': False})
 
     
 
