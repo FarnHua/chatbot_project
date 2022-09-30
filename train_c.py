@@ -209,7 +209,9 @@ def make_response(model, sentences, tokenizer, first_input):
                     temp_sentence[j].append(prev_input[j].item())
             if flag == 1: break
     return [[tokenizer.decode(x).replace('<|endoftext|>', '')] for x in temp_sentence]
-    
+
+table_data = []
+
 def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward):
     loss = 0
     inputs_id = inputs_id.to(device_0) ## 8*29
@@ -297,7 +299,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
                 flag = 0
                 temp_sentence[j].append(prev_input[j].item())
         if flag == 1: break
-    decode_temp_sentence = [tokenizer.decode(x).replace(' ', '') for x in temp_sentence]
+    decode_temp_sentence = [tokenizer.decode(x) for x in temp_sentence]
 
     
     
@@ -311,15 +313,16 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     inter_response = []
     if 'gpt' in args.inter:
         inter_response.extend(make_response(model_bot, decode_temp_sentence, tokenizer, first_input))
-    if batch % 8 == 0:
-        print(f'batch: {batch}')
+    
+    if batch % 100 == 0:
+        # print(f'batch: {batch}')
         inpu_t = [tokenizer.decode(x[n_tokens:]) for x in inputs_id]
         my_table = wandb.Table(columns=['batch','input', 'chatbot', 'inter']) 
         for i in range(inputs_id.shape[0]):
-            print(inpu_t[i])
-            data = [batch,inpu_t[i] ,decode_temp_sentence[i], inter_response[i][0]]
-            my_table.add_data(*data)
-        print('************** save to table **********')
+            table_data.append([batch,inpu_t[i] ,decode_temp_sentence[i], inter_response[i][0]])
+        for t in table_data:
+            my_table.add_data(*t)
+        # print('************** save to table **********')
         wandb.log({'generation table': my_table}, commit=False)
     # if 'google' in args.inter:
     #     #k = []
@@ -346,7 +349,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
 
         for j in range(inputs_id.shape[0]*len(args.inter)):
             l = ll[j%inputs_id.shape[0]]
-            sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:n_tokens + l + 1]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
+            sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
         emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))      
         temp_score = []
         for e in embans:
@@ -369,13 +372,12 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         sent_input = []
         for j in range(inputs_id.shape[0]*len(args.inter)):
             l = ll[j%inputs_id.shape[0]]
-            sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][:l].tolist()), decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j][0]])
+            sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()), decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j][0]])
         
         score = []
-        for sens in sent_input:
+        for sens in sent_input:           
             sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
-            score.append(len(sens[2]))
-
+            score.append(len(sens[2].split()))
         test_len = [len(s) for s in temp_sentence]
         test_reward = [test_reward[i] ** (1/test_len[i]) for i in range(inputs_id.shape[0])]
 
@@ -408,6 +410,7 @@ def main():
     parser.add_argument("--n_tokens", type=int, default=10)
     parser.add_argument("--sw", type=str, default=None)
     parser.add_argument("--len", type=str, default=None)
+    parser.add_argument("--initial", type=str, default='vocab')
     args = parser.parse_args()
 
     if not args.emotion and not args.sw and not args.len :
@@ -431,7 +434,8 @@ def main():
       )
     # Track hyperparameters and run metadata
     wandb.config.update(args)
-    wandb.config.update({"lr": 5e-6, 'epoch':2, "seed":100, 'batch_size':4, 'init_from_vocab': False})
+    wandb.config.update({"lr": 5e-6, 'epoch':1, "seed":100, 'batch_size':4, 
+        'init_from_vocab': True if args.initial == 'vocab' else False})
 
     
 
