@@ -9,7 +9,7 @@ import re
 from argparse import ArgumentParser
 
 from Emo_detector.detect_emotion import re_emo_score, prepare_model
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from transformers import GPT2LMHeadModel, GPT2Tokenizer, AutoModelForCausalLM, AutoTokenizer
 import tqdm
 import torch
 import torch.nn as nn
@@ -441,7 +441,7 @@ def main():
 
     config = wandb.config
     os.makedirs('model/' + args.model, exist_ok=True)
-    
+    #test
     
 
     np.random.seed(config.seed)
