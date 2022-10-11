@@ -1,2 +1,2 @@
-python train_c.py --len len --save gpt2_len50 --model gpt2\
- --inter gpt --n_tokens 50
+python train_mlp.py --len len --save dialogpt_len10_mlpRandomDiff --model microsoft/DialoGPT-medium\
+ --inter gpt --n_tokens 10
