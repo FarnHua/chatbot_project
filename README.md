@@ -22,12 +22,16 @@ python train_c.py --emotion <emotion> --writer <tensorboard writer>
 
 #### Test
 ```
-python test_c.py --model <model to test (.pkl)> --filename <output file> --inter <interlocutor you want to interact> --base_model <gpt2 or dialogpt> --len <length of prefix>
+python test_c.py --model <model to test (.pkl)> --filename <output file> \ 
+--inter <interlocutor you want to interact> \ 
+--base_model <gpt2 or dialogpt> --len <length of prefix>
 ```
 
-### Evaluation 
+#### Evaluation 
 ```
-python eval.py --filename <output file from test_c.py> --model_name <model_to_test(.pkl)> --len <length of prefix> --outputfilename <output csv file>
+python eval.py --filename <output file from test_c.py> \
+--model_name <model_to_test(.pkl)> --len <length of prefix> \ 
+--outputfilename <output csv file>
 ```
 
 #### Emotion Detector
