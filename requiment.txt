@@ -1,0 +1,5 @@
+tensorboardX
+transformers
+boto3
+pytorch-pretrained-bert
+wandb
