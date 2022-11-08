@@ -19,7 +19,7 @@ class post_set(Dataset):
             if len(temp_token) >= 20: continue
             self.ll.append(len(temp_token))
             ## pad tokens
-            temp_token = torch.cat((torch.full((1,n_tokens), tokenizer.encode("<|endoftext|>")).squeeze(0), torch.LongTensor(temp_token)), 0)
+            temp_token = torch.cat((torch.full((1,n_tokens), tokenizer.encode(["<|endoftext|>"])[0]).squeeze(0), torch.LongTensor(temp_token)), 0)
             temp_mask = torch.cat((torch.full((1,n_tokens), 1).squeeze(0), torch.LongTensor(temp_mask)), 0)
             ##
             temp.append(temp_token[:])

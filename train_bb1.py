@@ -183,14 +183,14 @@ def make_response(model, sentences, tokenizer, first_input):
         sentences = [x[:-1] for x in sentences]
         for i in range(len(sentences)):
             mask.append([1 for x in range(len(sentences[i]))])
-        eos = [tokenizer.encoder["<|endoftext|>"]]
+        eos = tokenizer.encode(["<|endoftext|>"])
 
         prev_input = pad_sequence([torch.LongTensor(x) for x in sentences], batch_first=True, padding_value=0).to(device_1)
         mask = pad_sequence([torch.LongTensor(x) for x in mask], batch_first=True, padding_value=0).to(device_1)
         #_, past = model(prev_input, past=None, attention_mask=mask)
         output = model(prev_input, past_key_values=None, attention_mask=mask)
         past = output['past_key_values']
-        prev_input = torch.LongTensor([[eos] * len(sentences)]).to(device_1)
+        prev_input = torch.LongTensor([eos] * len(sentences)).to(device_1)
         temp_sentence = [[] for i in range(len(sentences))]
         for i in range(128):
             #prev_input, past = model(prev_input, past=past)
@@ -199,7 +199,6 @@ def make_response(model, sentences, tokenizer, first_input):
             prev_input = prev_input.squeeze(0).squeeze(1)
             prev_input = prev_input / 0.7
             prev_input = torch.softmax(prev_input, dim=-1)
-
             prev_input = torch.multinomial(prev_input, num_samples=1)
 
             if i == 0:
@@ -223,7 +222,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     if args.emotion : 
         emo_embed = emo_dict['<'+args.emotion+'>']
 
-    eos = [tokenizer.encode("<|endoftext|>")] ## [50256]
+    eos = tokenizer.encode(["<|endoftext|>"]) ## [50256]
 
     mask = mask.to(device_0)
     
@@ -253,7 +252,6 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     mask = torch.cat((mask, append), 1) 
     coh_score = 0
     for i in range(40): # 40 words
-        
         output = model_train(prev_input, past_key_values=past)
         logits, past = output['logits'], output['past_key_values']
         prev_input = prev_input.to(device_1)
@@ -309,7 +307,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     
     
 
-    eos = [tokenizer.encoder["<|endoftext|>"]]
+    eos = tokenizer.encode(["<|endoftext|>"])
     first_input = list(inputs_id.cpu().detach().numpy())
     for j in range(inputs_id.shape[0]):
         l = ll[j]
