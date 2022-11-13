@@ -43,7 +43,7 @@ class ValueHead(nn.Module):
         num_classes = 1 # config.num_labels
 #             else:
 #         num_classes = 768 #config.hidden_size
-        self.summary = nn.Linear(768, num_classes)
+        self.summary = nn.Linear(1024, num_classes)
 
         self.activation = Identity()
 #         if hasattr(config, "summary_activation") and config.summary_activation == "tanh":
