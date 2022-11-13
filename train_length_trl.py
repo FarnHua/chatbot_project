@@ -488,7 +488,7 @@ def main():
                 query_tensors = torch.cat(query_tensors).to(device_0)
                 response_tensors = torch.LongTensor(tf.keras.preprocessing.sequence.pad_sequences([torch.LongTensor(x) for x in response_tensors], padding='post', value=0)).to(device_0)
                 rewards = torch.cat(rewards).to(device_0)
-                stats = ppo_trainer.step(query_tensors, response_tensors, rewards)            
+                stats, avg_loss = ppo_trainer.step(query_tensors, response_tensors, rewards)            
                 
                 timing['time/epoch'] = time.time()-t0
                 table_rows = [list(r) for r in zip(game_data['epoch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
@@ -501,7 +501,7 @@ def main():
                 logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
                 logs['env/reward_dist'] = rewards.cpu().numpy()
                 wandb.log(logs)
-                wandb.log({"reward": avg_score})
+                wandb.log({"reward": avg_score, "loss": avg_loss})
                 
                 
                 if (batch+1) % 20 == 0:

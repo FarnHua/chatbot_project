@@ -154,15 +154,20 @@ class PPOTrainer:
 
         t = time.time()
         all_stats = []
+        all_loss = []
+        k = 0
         idxs = list(range(bs))
         for _ in range(self.ppo_params['ppo_epochs']):
             random.shuffle(idxs)
             for i in range(bs):
                 idx = idxs[i]
-                train_stats = self.train_minibatch(logprobs[idx:idx+1], values[idx:idx+1],
+                k += 1
+                train_stats, loss = self.train_minibatch(logprobs[idx:idx+1], values[idx:idx+1],
                                                    rewards[idx:idx+1], query[idx:idx+1],
                                                    response[idx:idx+1], model_input[idx:idx+1])
                 all_stats.append(train_stats)
+                all_loss.append(loss)
+        avg_loss = np.sum(all_loss) / k
         timing['time/ppo/optimize_step'] = time.time()-t
 
         t = time.time()
@@ -182,7 +187,7 @@ class PPOTrainer:
 
         timing['time/ppo/total'] = time.time()-t0
         stats.update(timing)
-        return stats
+        return stats, avg_loss
 
     def batched_forward_pass(self, model_input, gen_len):
         """Calculate model outputs in multiple batches."""
@@ -210,7 +215,7 @@ class PPOTrainer:
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        return train_stats
+        return train_stats, loss
 
     def compute_rewards(self, scores, logprobs, ref_logprobs):
         """Compute per token rewards from scores and KL-penalty."""
