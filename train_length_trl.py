@@ -461,9 +461,9 @@ def main():
             query_tensors = []
             response_tensors = []
             rewards = []
-
-
             i = 0
+
+           
             for inputs_id, mask, ll in tqdm(train_dataloader):
                 
                 response_ids, score, query, response, inter, avg_score = train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, fbs, n_tokens, batch)
@@ -478,33 +478,48 @@ def main():
                     inters.append(inter)
                     epochs.append(epoch)
                     record_rewards.append(score[0])
-                
-                game_data['epoch'] = batch
-                game_data['query'] = querys
-                game_data['response'] = responses
-                game_data['inter'] = inters
-                game_data['reward'] = record_rewards
+                    i = 1
 
-                query_tensors = torch.cat(query_tensors).to(device_0)
-                response_tensors = torch.LongTensor(tf.keras.preprocessing.sequence.pad_sequences([torch.LongTensor(x) for x in response_tensors], padding='post', value=0)).to(device_0)
-                rewards = torch.cat(rewards).to(device_0)
-                stats, avg_loss = ppo_trainer.step(query_tensors, response_tensors, rewards)            
+                if (batch + 1) % 16 == 0:
+
+                    game_data['epoch'] = batch
+                    game_data['query'] = querys
+                    game_data['response'] = responses
+                    game_data['inter'] = inters
+                    game_data['reward'] = record_rewards
+
+                    query_tensors = torch.cat(query_tensors).to(device_0)
+                    response_tensors = torch.LongTensor(tf.keras.preprocessing.sequence.pad_sequences([torch.LongTensor(x) for x in response_tensors], padding='post', value=0)).to(device_0)
+                    rewards = torch.cat(rewards).to(device_0)
+                    stats, avg_loss = ppo_trainer.step(query_tensors, response_tensors, rewards)            
+                    
+                    timing['time/epoch'] = time.time()-t0
+                    table_rows = [list(r) for r in zip(game_data['epoch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
+                    logs.update({'game_log':wandb.Table(
+                        columns=['epoch', 'query', 'response', 'inter', 'reward'],
+                        rows=table_rows)})
+                    logs.update(timing)
+                    logs.update(stats)
+                    logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
+                    logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
+                    logs['env/reward_dist'] = rewards.cpu().numpy()
+                    wandb.log(logs)
+                    wandb.log({"reward": avg_score, "loss": avg_loss})
+
+
+                    torch.cuda.empty_cache()
+                    logs = dict()
+                    game_data = dict()
+                    timing = dict()
+                    t0 = time.time()
+
+                    query_tensors = []
+                    response_tensors = []
+                    rewards = []
+                    i = 0
                 
-                timing['time/epoch'] = time.time()-t0
-                table_rows = [list(r) for r in zip(game_data['epoch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
-                logs.update({'game_log':wandb.Table(
-                    columns=['epoch', 'query', 'response', 'inter', 'reward'],
-                    rows=table_rows)})
-                logs.update(timing)
-                logs.update(stats)
-                logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
-                logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
-                logs['env/reward_dist'] = rewards.cpu().numpy()
-                wandb.log(logs)
-                wandb.log({"reward": avg_score, "loss": avg_loss})
                 
-                
-                if (batch) % 20 == 0:
+                if (batch + 1) % 20 == 0:
                     name = 'transformer.wte.learned_embedding' 
                     # idx = random.randint(1, len(parameters_check) - 1)
                     # param = list(model_train.parameters())
