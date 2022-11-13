@@ -432,7 +432,7 @@ def main():
         
     
     batch_size = ppo_config['batch_size']
-    
+    fbs = ppo_config['forward_batch_size']
     post = post_set('data/train_raw.tsv', tokenizer, n_tokens)
     train_dataloader = DataLoader(post, batch_size=int(config['batch_size']/fbs), shuffle=True, num_workers=2)
 
@@ -443,7 +443,7 @@ def main():
     test_score = 0
     for global_step in range(1):
         model_train.train()
-        fbs = ppo_config['forward_batch_size']
+        
 
 
         epochs = []
