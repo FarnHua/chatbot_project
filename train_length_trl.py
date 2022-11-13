@@ -257,9 +257,9 @@ def train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, batch_si
         logits = torch.softmax(logits, dim=-1)
 
         ## prevent empty sentence
-        if i == 0:
-            for j in range(inputs_id.shape[0]):
-                logits[j][tokenizer.sep_token_id] = 0
+        # if i == 0:
+        #     for j in range(inputs_id.shape[0]):
+        #         logits[j][tokenizer.sep_token_id] = 0
 
 
         prev_input = torch.multinomial(logits[:], num_samples=1) #(8,1)
