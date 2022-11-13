@@ -8,8 +8,8 @@ from os.path import join
 import re
 from argparse import ArgumentParser
 
-# from Emo_detector.detect_emotion import re_emo_score, prepare_model
-from transformers import GPT2LMHeadModel, GPT2Tokenizer, AutoModelForCausalLM, AutoTokenizer
+from Emo_detector.detect_emotion import re_emo_score, prepare_model
+from transformers import  GPT2Tokenizer
 import tqdm
 import torch
 import torch.nn as nn
@@ -18,11 +18,17 @@ from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
 from chat_load import post_set
 from lsp_model.optim import Adam
+import tensorflow as tf
+### add for trl
+from ppo import PPOTrainer
+from gpt2 import GPT2HeadWithValueModel, respond_to_batch
+import time
+###
+
 
 import string
 from tqdm import tqdm
-import copy
-import math
+
 import wandb
 
 wandb.login()
@@ -160,7 +166,6 @@ temperature = 1 #2.2
 top_k = 50        #50
 top_p = 0.95
 device_0 = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device_1 = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def make_response(model, sentences, tokenizer, first_input):
     with torch.no_grad():
@@ -181,12 +186,12 @@ def make_response(model, sentences, tokenizer, first_input):
             mask.append([1 for x in range(len(sentences[i]))])
         eos = [tokenizer.encoder["<|endoftext|>"]]
 
-        prev_input = pad_sequence([torch.LongTensor(x) for x in sentences], batch_first=True, padding_value=0).to(device_1)
-        mask = pad_sequence([torch.LongTensor(x) for x in mask], batch_first=True, padding_value=0).to(device_1)
+        prev_input = pad_sequence([torch.LongTensor(x) for x in sentences], batch_first=True, padding_value=0).to(device_0)
+        mask = pad_sequence([torch.LongTensor(x) for x in mask], batch_first=True, padding_value=0).to(device_0)
         #_, past = model(prev_input, past=None, attention_mask=mask)
         output = model(prev_input, past_key_values=None, attention_mask=mask)
         past = output['past_key_values']
-        prev_input = torch.LongTensor([[eos] * len(sentences)]).to(device_1)
+        prev_input = torch.LongTensor([[eos] * len(sentences)]).to(device_0)
         temp_sentence = [[] for i in range(len(sentences))]
         for i in range(128):
             #prev_input, past = model(prev_input, past=past)
@@ -213,141 +218,56 @@ def make_response(model, sentences, tokenizer, first_input):
 
 table_data = []
 
-def train(model_train, inputs_id, mask, model2, model_c, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward):
-    loss = 0
+def train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, batch_size, n_tokens, batch):
+    
     inputs_id = inputs_id.to(device_0) ## 8*29
-    if args.emotion : 
-        emo_embed = emo_dict['<'+args.emotion+'>']
-
+    
+    
     eos = [tokenizer.encoder["<|endoftext|>"]] ## [50256]
 
     mask = mask.to(device_0)
     
-    output_train = model_train(inputs_id, past_key_values=None, attention_mask=mask)
-    past = output_train['past_key_values']
-
-    model2.train()
-    with torch.no_grad():
-        output = model2(inputs_id, past_key_values=None, attention_mask=mask)
-        past_bot_t = output['past_key_values']
-
-    inputs_id = inputs_id.to(device_1)
-    mask = mask.to(device_1)
-    model2.eval()
-    # p_theta' in eval mode #
-    with torch.no_grad():
-        output_t = model2(inputs_id, past_key_values=None, attention_mask=mask)
-        past_bot = output_t['past_key_values']
-
-
-
-    ## coherence
-    with torch.no_grad():
-      output2 = model_c(inputs_id, past_key_values=None, attention_mask=mask)
-      past_c = output2['past_key_values'] 
-   
-     ##### generate p_theta and p_theta' with eval mode #####
-    model_train.eval()
-    with torch.no_grad():
-        output_train = model_train(inputs_id, past_key_values=None, attention_mask=mask)
-        past_e = output_train['past_key_values']
-    model_train.train()
-
-
+    
+    prev_input, past, v = model_train(inputs_id, past_key_values=None, attention_mask=mask)
+    inputs_id = inputs_id.to(device_0)
+    mask = mask.to(device_0)
+    
     prev_input = torch.LongTensor([[eos] * inputs_id.shape[0]]).squeeze(0).to(device_0) # (8,1)
+
 
 
     ######### all (8,) 
     temp_sentence = [[] for i in range(inputs_id.shape[0])]
-    temp_sentence_g = [[] for i in range(inputs_id.shape[0])]
-    emotion_loss = [0 for i in range(inputs_id.shape[0])]
-    emotion_loss_p = [1 for i in range(inputs_id.shape[0])]
-    coherence_loss = [0 for i in range(inputs_id.shape[0])]
-    test_reward = [1 for i in range(inputs_id.shape[0])]
-    test_len = [40 for i in range(inputs_id.shape[0])]
-    #########
-
-
+    
     append = torch.tensor([[1] for i in range(len(inputs_id))]).to(device_0)
     mask = torch.cat((mask, append), 1) 
-    coh_score = 0
+
     for i in range(40): # 40 words
+
+        prev_input = prev_input.to(device_0)
         output = model_train(prev_input, past_key_values=past)
         logits, past = output['logits'], output['past_key_values']
-
-        ##### generate logits_bot_t in train mode for reward
-        model2.train()
-        with torch.no_grad():
-            output = model2(prev_input, past_key_values=past_bot_t, attention_mask=mask)
-            logits_bot_t, past_bot_t = output['logits'], output['past_key_values']
-        model2.eval()
-
-        prev_input = prev_input.to(device_1)
-        ##### generate p_theta and p_theta' with eval mode #####
-        model_train.eval()
-        with torch.no_grad():
-            output = model_train(prev_input, past_key_values=past_e, attention_mask=mask)
-            logits_e, past_e = output['logits'], output['past_key_values']
-        model_train.train()
-
-        with torch.no_grad():
-            output = model2(prev_input, past_key_values=past_bot, attention_mask=mask)
-            logits_bot, past_bot = output['logits'], output['past_key_values']
-
-        ## coherence
-        with torch.no_grad():
-            output = model_c(prev_input, past_key_values=past_c)
-            logits_c, past_c = output['logits'], output['past_key_values']
-        mask = torch.cat((mask, append), 1) ## (1, 8, 1, 50257)
-
+        
+        
+        mask = torch.cat((mask, append), 1)
+        # print(logits.size()) ## (1, 8, 1, 50257)
         logits = logits.squeeze(0).squeeze(1)
-        logits = logits / temperature ## (8, 50257)
+        # print(logits.size()) ## (8, 50257)
+        logits = logits / temperature
         logits = torch.softmax(logits, dim=-1)
 
-        logits_bot_t = logits_bot_t.squeeze(0).squeeze(1)
-        logits_bot_t = logits_bot_t / temperature
-        logits_bot_t = torch.softmax(logits_bot_t, dim=-1)
+        ## prevent empty sentence
+        if i == 0:
+            for j in range(inputs_id.shape[0]):
+                logits[j][tokenizer.sep_token_id] = 0
 
-        
-        with torch.no_grad():
-            logits_bot = torch.softmax(logits_bot.squeeze(0).squeeze(1) / temperature, dim=-1)
-            logits_e = torch.softmax(logits_e.squeeze(0).squeeze(1) / temperature, dim=-1) #####
-            logits_c = torch.softmax(logits_c.squeeze(0).squeeze(1) / temperature, dim=-1) #####
-            
-        prev_input = torch.multinomial(logits_bot_t[:], num_samples=1) #(8,1) ## p theta'
-        prev_input_g = torch.multinomial(logits[:], num_samples=1)
 
-        probs = []
-        probs_1e = [0 for i in range(inputs_id.shape[0])] # Sentences (j) have different length (i) (原本下面迴圈忘記擋掉eos的了)
-        probs_2e = [0 for i in range(inputs_id.shape[0])]
-        for j in range(inputs_id.shape[0]):
-            if i != 0 and temp_sentence[j][-1] == eos[0]: 
-                test_len[j] = i ## length of chatbot
-                continue
-            probs.append(math.log(logits_c[j][prev_input[j][0].item()].item())) ## compute conditional prob
-            probs_1e[j] = logits_e[j][prev_input[j][0].item()].item() ##### eval, theta
-            probs_2e[j] = logits_bot[j][prev_input[j][0].item()].item() ##### eval, theta'
-
-            test_reward[j] *= logits_c[j][prev_input[j][0].item()].item()
-        if len(probs) == 0:
-            avg_prob = 0
-        else:
-            avg_prob = sum(probs) / len(probs)
-            coh_score += avg_prob
-
-        for j in range(inputs_id.shape[0]):
-            if i != 0 and temp_sentence[j][-1] == eos[0]: continue
-            ## prev_input.view(-1) ## size=(8)
-            temp_loss = F.cross_entropy(logits[j].unsqueeze(0), prev_input.view(-1)[j].unsqueeze(0))
-            coherence_loss[j] += (math.log(logits_c[j][prev_input[j][0].item()].item()) - avg_prob) * temp_loss
-            emotion_loss[j] += temp_loss
-            emotion_loss_p[j] *= probs_1e[j] / probs_2e[j]
+        prev_input = torch.multinomial(logits[:], num_samples=1) #(8,1)
 
         if i == 0:
             ## if first word of chatbot
             for j in range(inputs_id.shape[0]):
                 temp_sentence[j].append(prev_input[j].item())
-                temp_sentence_g[j].append(prev_input_g[j].item())
             continue ## jump to second words
         flag = 1 ## to ascertain whether all sentence complete
         
@@ -355,26 +275,21 @@ def train(model_train, inputs_id, mask, model2, model_c, model_bot, tokenizer, l
             if temp_sentence[j][-1] != eos[0]: 
                 flag = 0
                 temp_sentence[j].append(prev_input[j].item())
-                temp_sentence_g[j].append(prev_input_g[j].item())
         if flag == 1: break
     decode_temp_sentence = [tokenizer.decode(x) for x in temp_sentence]
-    decode_temp_sentence_g = [tokenizer.decode(x) for x in temp_sentence_g]
+
     
     
 
     eos = [tokenizer.encoder["<|endoftext|>"]]
     first_input = list(inputs_id.cpu().detach().numpy())
-
     for j in range(inputs_id.shape[0]):
         l = ll[j]
         first_input[j] = first_input[j][n_tokens:n_tokens+l+1]
         first_input[j][-1] = eos[0]
     inter_response = []
-    inter_response_g = []
-
     if 'gpt' in args.inter:
         inter_response.extend(make_response(model_bot, decode_temp_sentence, tokenizer, first_input))
-        inter_response_g.extend(make_response(model_bot, decode_temp_sentence_g, tokenizer, first_input))
     
     if batch % 100 == 0:
         # print(f'batch: {batch}')
@@ -386,87 +301,31 @@ def train(model_train, inputs_id, mask, model2, model_c, model_bot, tokenizer, l
             my_table.add_data(*t)
         # print('************** save to table **********')
         wandb.log({'generation table': my_table}, commit=False)
-    # if 'google' in args.inter:
-    #     #k = []
-    #     for j in range(inputs_id.shape[0]):
-    #         k.append([jack.daemonPredict(sentence=a[j].replace('<|endoftext|>', ''))])
-    # if 'retrieve' in args.inter:
-    #     ii = []
-    #     for j in range(inputs_id.shape[0]): 
-    #         # ii = [tokenizer.decode(x[:-1]) for x in first_input]
-    #         ii.append([tokenizer.decode(first_input[j][:-1]), a[j].replace('<|endoftext|>', '')])
-    #     rps = ret_model.get_response(ii)
-    #     k.extend([[x] for x in rps])
 
-    #test_score += avg_prob
 
 #################################################################################
 #                                                                               #
 #                   Reward                                                      #
 #                                                                               #
 #################################################################################
-    score = None
-    if reward == 'emotion': 
-        # sent_input = []
+
+    sent_input = []
+    for j in range(inputs_id.shape[0]*len(args.inter)):
+        l = ll[j%inputs_id.shape[0]]
+        sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()), decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j][0]])
         
+        if j == 0:
+            query = tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
+            response = decode_temp_sentence[j%inputs_id.shape[0]].replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
+            inter = inter_response[j][0].replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
 
-        # for j in range(inputs_id.shape[0]*len(args.inter)):
-        #     l = ll[j%inputs_id.shape[0]]
-        #     sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:]), decode_temp_sentence[j%inputs_id.shape[0]].replace('<|endoftext|>', ''), inter_response[j][0]])
-            
-        # emo, embans = re_emo_score(detect_model, detect_processor, emotion_tokenizer, sent_input, len(inter_response))      
-        # temp_score = []
-        # temp_score_g = []
-        # for e in embans:
-        #     temp_score.append(np.sum((e - emo_embed)**2))
-
-        # score = [0 for i in range(len(temp_score) // len(args.inter))]
-
-        # for j in range(len(temp_score) // len(args.inter)):
-        #     for k in range(len(args.inter)):
-        #         score[j] += temp_score[j + batch_size*k]
-        pass
-
-    elif reward == 'sw':
-        pass
-        # score = np.array([0 for w in range(inputs_id.shape[0])])
-        # for j in range(inputs_id.shape[0]*len(args.inter)):
-        #     for word in word_dict.keys():
-        #         if re.search(r"\b{}\b".format(word.lower()), inter_response[j][0].lower().strip()):
-        #             score[j%8] += 1
-
-    elif reward == 'length':
-        sent_input = []
-        sent_input_g = []
-        for j in range(inputs_id.shape[0]*len(args.inter)):
-            l = ll[j%inputs_id.shape[0]]
-            sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()), decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j][0]])
-            sent_input_g.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()), decode_temp_sentence_g[j%inputs_id.shape[0]], inter_response_g[j][0]])
-        temp_score = []
-        temp_score_g = []
-        for sens in sent_input:           
-            sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
-            temp_score.append(len(sens[2].split()))
-        for sens in sent_input_g:
-            sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
-            temp_score_g.append(len(sens[2].split()))
-
-        test_len = [len(s) for s in temp_sentence]
-        test_reward = [test_reward[i] ** (1/test_len[i]) for i in range(inputs_id.shape[0])] ## ?? coherence ???
-        test_reward = np.mean(test_reward)
-
-
-    emotion_p_deviation = np.sum(np.abs(np.array(emotion_loss_p) - np.ones(inputs_id.shape[0])))
-
-    for j in range(inputs_id.shape[0]):
-        if args.clip: ### ??? reward, score 定義相反
-            loss -= max(temp_score[j] * emotion_loss_p[j], temp_score[j] * np.clip(emotion_loss_p[j], 1 - args.eps, 1 + args.eps)) * emotion_loss[j]  #/ len(temp_sentence[j])
-        else:
-            loss -= temp_score[j] * emotion_loss_p[j]  #/ len(temp_sentence[j])              
-        # loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j]) ###
-
-        
-    return loss, sum(temp_score), test_reward, sum(temp_score_g), emotion_p_deviation
+    temp_score = []
+    for sens in sent_input:           
+        sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
+        temp_score.append(len(sens[2].split()))
+    # test_len = [len(s) for s in temp_sentence]
+    score = np.array(temp_score) / len(args.inter)
+    return temp_sentence, torch.Tensor(score), query, response, inter
 
 def main():
     parser = ArgumentParser()
@@ -480,10 +339,6 @@ def main():
     parser.add_argument("--sw", type=str, default=None)
     parser.add_argument("--len", type=str, default=None)
     parser.add_argument("--initial", type=str, default='vocab')
-    parser.add_argument("--lr", type=float, default=5e-4, help="learning rate")
-    parser.add_argument("--copy_iter", type=int, default=20, help="copy theta to theta' per # of iterations")
-    parser.add_argument("--eps", type=float, default=0.2, help="threshold for PPO-2")
-    parser.add_argument("--clip", type=bool, default=True, help="clip p_theta/p_theta'")
     args = parser.parse_args()
 
     if not args.emotion and not args.sw and not args.len :
@@ -507,7 +362,7 @@ def main():
       )
     # Track hyperparameters and run metadata
     wandb.config.update(args)
-    wandb.config.update({'epoch':1, "seed":100, 'batch_size':4, 
+    wandb.config.update({"seed":100, 
         'init_from_vocab': True if args.initial == 'vocab' else False})
 
     if not os.path.exists(f'./model/save/{args.save}'):
@@ -521,17 +376,9 @@ def main():
     np.random.seed(config.seed)
     torch.random.manual_seed(config.seed)
     torch.cuda.manual_seed(config.seed)
-    model_train = GPT2LMHeadModel.from_pretrained(args.model) 
-    model_c = GPT2LMHeadModel.from_pretrained(args.model)
-    model_2 = GPT2LMHeadModel.from_pretrained(args.model)
+    model_train = GPT2HeadWithValueModel(args.model)
     tokenizer = GPT2Tokenizer.from_pretrained(args.model)
-    
-    if args.sw:
-        with open('specific_word.json') as f:
-            data = json.load(f)
-            data = data[args.sw]
-            for w in data:
-                word_dict[w] = 1
+    sep = tokenizer.sep_token_id
 
     ### setting  softprompt
     n_tokens = args.n_tokens
@@ -539,111 +386,140 @@ def main():
     s_wte = SoftEmbedding(model_train.get_input_embeddings(), 
                       n_tokens=n_tokens, 
                       initialize_from_vocab=initialize_from_vocab)
-    model_train.set_input_embeddings(s_wte)
+    model_train.transformer.set_input_embeddings(s_wte)
 
-    s_wte2 = SoftEmbedding(model_2.get_input_embeddings(), 
-                      n_tokens=n_tokens, 
-                      initialize_from_vocab=initialize_from_vocab)
-    model_2.set_input_embeddings(s_wte2)
-    parameters = list(model_train.parameters())
+    parameters = list(model_train.transformer.parameters())
+    # parameters_check = list(model_train.parameters())
+
     for x in parameters[1:]:
         x.requires_grad = False
     ###
-    parameters = list(model_2.parameters())
-    for x in parameters[1:]:
-        x.requires_grad = False
 
 
     if 'gpt' in args.inter:
-        model_bot = GPT2LMHeadModel.from_pretrained(args.model)
-        model_bot.to(device_1)
+        model_bot = GPT2HeadWithValueModel.from_pretrained(args.model)
+        model_bot.to(device_0)
         model_bot.eval()
-    #
-    # if 'google' in args.inter:
-    #     from main1 import chatbot
-    #     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.1) 
-    #     sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
-    #     jack = chatbot.Chatbot()
-    #     jack.main(['--test', 'daemon', '--rootDir', 'deepqa', '--maxLength', '20'])
-    # if 'retrieve' in args.inter:
-    #     with torch.no_grad():
-    #         from retrieval_model.retrieval_chatbot import Retrievalchatbot
-    #         ret_model = Retrievalchatbot()
-    # writer = SummaryWriter('runs/'+args.writer+'/')
+    
 
+    ### init ppo trainer
 
-
+    ppo_config = {
+        "lr": 1.41e-5,
+        "adap_kl_ctrl": True,
+        "init_kl_coef":0.2,
+        "target": 6,
+        "horizon":10000,
+        "gamma":1,
+        "lam":0.95,
+        "cliprange": .2,
+        "cliprange_value":.2,
+        "vf_coef":.1,
+        "steps": 51200,
+        "batch_size": 256,
+        "forward_batch_size": 16,
+        "ppo_epochs": 4,
+    }
+    ppo_trainer = PPOTrainer(model_train, model_bot, **ppo_config)
+    wandb.config.update(ppo_config)
+    
     wandb.config.update({'total_update_param': sum(p.numel() for p in model_train.parameters() if p.requires_grad)})
-    optimizer = Adam([s_wte.learned_embedding], config.lr,
-                     max_grad_norm=1.0)
     ##
 
     model_train.to(device_0)
-    model_2.to(device_1) ### back to ppo-2
-    model_2.eval() ### backt to ppo-2
-    model_c.to(device_1)
-    model_c.eval()
-    batch_size = config.batch_size
+    
 
         
     
-
+    batch_size = ppo_config['batch_size']
     
     post = post_set('data/train_raw.tsv', tokenizer, n_tokens)
-    train_dataloader = DataLoader(post, batch_size=batch_size, shuffle=True, num_workers=2)
+    train_dataloader = DataLoader(post, batch_size=int(config['batch_size']/fbs), shuffle=True, num_workers=2)
 
     batch = 0
     temp_score = 0
     loss = 0
-    temp_score_g = 0
-    temp_emo_p_dev = 0
+   
     test_score = 0
-    for global_step in range(config.epoch):
+    for global_step in range(1):
         model_train.train()
-        for inputs_id, mask, ll in tqdm(train_dataloader):
-            batch += 1
-            batch_loss, score, avg_prob, score_g, emo_p_dev = train(model_train, inputs_id, mask, model_2, model_c, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward)
-            loss += batch_loss
-            test_score += avg_prob
-            temp_score += score
-            temp_score_g += score_g
-            temp_emo_p_dev += emo_p_dev
+        fbs = ppo_config['forward_batch_size']
 
 
-            if batch % args.copy_iter == 0:
-                print("copy theta to theta'")
-                del model_2 # prevent from cuda out of memory
-                model_2 = copy.deepcopy(model_train) #####
-                model_2.eval()
-            
-            if batch % 20 == 0:
-                # writer.add_scalar('reward', temp_score/batch_size/20, batch)
-                # writer.add_scalar('coherence', test_score/20, batch) # corherence
+        epochs = []
+        querys = []
+        responses = []
+        inters = []
+        record_rewards = []
+
+        for epoch in tqdm(range(int(np.ceil(config["steps"]/config['batch_size'])))):
+            torch.cuda.empty_cache()
+            logs = dict()
+            game_data = dict()
+            timing = dict()
+            t0 = time.time()
+
+            query_tensors = []
+            response_tensors = []
+            rewards = []
+
+
+            i = 0
+            for inputs_id, mask, ll in tqdm(train_dataloader):
+                batch += 1
+                response_ids, score, query, response, inter = train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, fbs, n_tokens, batch)
+                query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
+                for response_id in response_ids:
+                    response_tensors.append(response_id)
+                rewards.append(score)
+                if i == 0:
+                    querys.append(query)
+                    responses.append(response)
+                    inters.append(inter)
+                    epochs.append(epoch)
+                    record_rewards.append(score[0])
                 
-                wandb.log({"loss": loss})
-                wandb.log({"reward":  temp_score/batch_size/20, 'coherence': test_score/20}) # from model_2
-                wandb.log({"reward_g": temp_score_g/batch_size/20}) ## from model_train
-                wandb.log({"emotion_prob_deviation": temp_emo_p_dev/batch_size/20})
-                print("Reward:%.2f,    test:%.6f   "%(temp_score/batch_size/20, test_score/20))
-                test_score = 0
-                temp_score = 0
-                temp_score_g = 0
-                temp_emo_p_dev = 0
+            game_data['epoch'] = epochs
+            game_data['query'] = querys
+            game_data['response'] = responses
+            game_data['inter'] = inters
+            game_data['reward'] = record_rewards
 
-
-            loss.backward()
-            loss = 0
-            if batch % 8 == 0:  
-                optimizer.step()
-                optimizer.zero_grad()  
-                
+            query_tensors = torch.cat(query_tensors).to(device_0)
+            response_tensors = torch.LongTensor(tf.keras.preprocessing.sequence.pad_sequences([torch.LongTensor(x) for x in response_tensors], padding='post', value=0)).to(device_0)
+            rewards = torch.cat(rewards).to(device_0)
+            stats = ppo_trainer.step(query_tensors, response_tensors, rewards)            
             
-            if batch % 1000 == 0:
+            timing['time/epoch'] = time.time()-t0
+            table_rows = [list(r) for r in zip(game_data['epoch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
+            logs.update({'game_log':wandb.Table(
+                columns=['epoch', 'query', 'response', 'inter', 'reward'],
+                rows=table_rows)})
+            logs.update(timing)
+            logs.update(stats)
+            logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
+            logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
+            logs['env/reward_dist'] = rewards.cpu().numpy()
+            wandb.log(logs)
+            
+            
+            if (epoch+1) % 20 == 0:
                 name = 'transformer.wte.learned_embedding' 
+                # idx = random.randint(1, len(parameters_check) - 1)
+                # param = list(model_train.parameters())
+                # check_valid(param[idx], parameters_check[idx])
                 torch.save(
-                    {name: (model_train.state_dict()[name].cpu())},
+                    {name: (model_train.transformer.state_dict()[name].cpu())},
                     join(f'model/save/{args.save}',
-                            f'{args.save}-{batch}.pkl'))
+                            f'{args.save}_swe-{epoch}.pkl'))
+                
+                torch.save(
+                    {name: (model_train.v_head.state_dict().cpu())},
+                    join(f'model/save/{args.save}',
+                            f'{args.save}_value-{epoch}.pkl')
+                )
+
+
     wandb.finish()
 
 if __name__ == "__main__":
