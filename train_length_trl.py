@@ -482,7 +482,7 @@ def main():
                     record_rewards.append(score[0])
                     i = 1
 
-                if (batch) % 16 == 0:
+                if (batch + 1) % 16 == 0:
 
                     game_data['batch'] = batch
                     game_data['query'] = querys
@@ -521,7 +521,7 @@ def main():
                     i = 0
                 
                 
-                if (batch + 1) % 20 == 0:
+                if (batch + 1) % 100 == 0:
                     name = 'transformer.wte.learned_embedding' 
                     # idx = random.randint(1, len(parameters_check) - 1)
                     # param = list(model_train.parameters())
