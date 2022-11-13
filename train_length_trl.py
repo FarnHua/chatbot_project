@@ -504,7 +504,7 @@ def main():
                 wandb.log({"reward": avg_score, "loss": avg_loss})
                 
                 
-                if (batch+1) % 20 == 0:
+                if (batch) % 20 == 0:
                     name = 'transformer.wte.learned_embedding' 
                     # idx = random.randint(1, len(parameters_check) - 1)
                     # param = list(model_train.parameters())
