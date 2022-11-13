@@ -467,7 +467,8 @@ def main():
             for inputs_id, mask, ll in tqdm(train_dataloader):
                 batch += 1
                 response_ids, score, query, response, inter = train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, fbs, n_tokens, batch)
-                query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
+                # query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
+                query_tensors.append(inputs_id)
                 for response_id in response_ids:
                     response_tensors.append(response_id)
                 rewards.append(score)
