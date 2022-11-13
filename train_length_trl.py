@@ -189,14 +189,13 @@ def make_response(model, sentences, tokenizer, first_input):
         prev_input = pad_sequence([torch.LongTensor(x) for x in sentences], batch_first=True, padding_value=0).to(device_0)
         mask = pad_sequence([torch.LongTensor(x) for x in mask], batch_first=True, padding_value=0).to(device_0)
         #_, past = model(prev_input, past=None, attention_mask=mask)
-        output = model(prev_input, past_key_values=None, attention_mask=mask)
-        past = output['past_key_values']
+        _, past, v = model(prev_input, past_key_values=None, attention_mask=mask)
         prev_input = torch.LongTensor([[eos] * len(sentences)]).to(device_0)
         temp_sentence = [[] for i in range(len(sentences))]
         for i in range(128):
             #prev_input, past = model(prev_input, past=past)
-            output = model(prev_input, past_key_values=past)
-            prev_input, past = output['logits'], output['past_key_values']
+            prev_input, past, v = model(prev_input, past_key_values=past)
+            # prev_input, past = output['logits'], output['past_key_values']
             prev_input = prev_input.squeeze(0).squeeze(1)
             prev_input = prev_input / 0.7
             prev_input = torch.softmax(prev_input, dim=-1)
