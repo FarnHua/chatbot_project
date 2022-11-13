@@ -324,7 +324,7 @@ def train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, batch_si
         temp_score.append(len(sens[2].split()))
     # test_len = [len(s) for s in temp_sentence]
     score = np.array(temp_score) / len(args.inter)
-    return temp_sentence, torch.Tensor(score), query, response, inter
+    return temp_sentence, torch.Tensor(score), query, response, inter, np.sum(score) / inputs_id.size()[0]
 
 def main():
     parser = ArgumentParser()
@@ -465,8 +465,8 @@ def main():
 
             i = 0
             for inputs_id, mask, ll in tqdm(train_dataloader):
-                batch += 1
-                response_ids, score, query, response, inter = train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, fbs, n_tokens, batch)
+                
+                response_ids, score, query, response, inter, avg_score = train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, fbs, n_tokens, batch)
                 # query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
                 query_tensors.append(inputs_id)
                 for response_id in response_ids:
@@ -479,45 +479,47 @@ def main():
                     epochs.append(epoch)
                     record_rewards.append(score[0])
                 
-            game_data['epoch'] = epochs
-            game_data['query'] = querys
-            game_data['response'] = responses
-            game_data['inter'] = inters
-            game_data['reward'] = record_rewards
+                game_data['epoch'] = batch
+                game_data['query'] = querys
+                game_data['response'] = responses
+                game_data['inter'] = inters
+                game_data['reward'] = record_rewards
 
-            query_tensors = torch.cat(query_tensors).to(device_0)
-            response_tensors = torch.LongTensor(tf.keras.preprocessing.sequence.pad_sequences([torch.LongTensor(x) for x in response_tensors], padding='post', value=0)).to(device_0)
-            rewards = torch.cat(rewards).to(device_0)
-            stats = ppo_trainer.step(query_tensors, response_tensors, rewards)            
-            
-            timing['time/epoch'] = time.time()-t0
-            table_rows = [list(r) for r in zip(game_data['epoch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
-            logs.update({'game_log':wandb.Table(
-                columns=['epoch', 'query', 'response', 'inter', 'reward'],
-                rows=table_rows)})
-            logs.update(timing)
-            logs.update(stats)
-            logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
-            logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
-            logs['env/reward_dist'] = rewards.cpu().numpy()
-            wandb.log(logs)
-            
-            
-            if (batch+1) % 20 == 0:
-                name = 'transformer.wte.learned_embedding' 
-                # idx = random.randint(1, len(parameters_check) - 1)
-                # param = list(model_train.parameters())
-                # check_valid(param[idx], parameters_check[idx])
-                torch.save(
-                    {name: (model_train.transformer.state_dict()[name].cpu())},
-                    join(f'model/save/{args.save}',
-                            f'{args.save}_swe-{epoch}.pkl'))
+                query_tensors = torch.cat(query_tensors).to(device_0)
+                response_tensors = torch.LongTensor(tf.keras.preprocessing.sequence.pad_sequences([torch.LongTensor(x) for x in response_tensors], padding='post', value=0)).to(device_0)
+                rewards = torch.cat(rewards).to(device_0)
+                stats = ppo_trainer.step(query_tensors, response_tensors, rewards)            
                 
-                torch.save(
-                    {name: (model_train.v_head.state_dict().cpu())},
-                    join(f'model/save/{args.save}',
-                            f'{args.save}_value-{epoch}.pkl')
-                )
+                timing['time/epoch'] = time.time()-t0
+                table_rows = [list(r) for r in zip(game_data['epoch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
+                logs.update({'game_log':wandb.Table(
+                    columns=['epoch', 'query', 'response', 'inter', 'reward'],
+                    rows=table_rows)})
+                logs.update(timing)
+                logs.update(stats)
+                logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
+                logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
+                logs['env/reward_dist'] = rewards.cpu().numpy()
+                wandb.log(logs)
+                wandb.log({"reward": avg_score})
+                
+                
+                if (batch+1) % 20 == 0:
+                    name = 'transformer.wte.learned_embedding' 
+                    # idx = random.randint(1, len(parameters_check) - 1)
+                    # param = list(model_train.parameters())
+                    # check_valid(param[idx], parameters_check[idx])
+                    torch.save(
+                        {name: (model_train.transformer.state_dict()[name].cpu())},
+                        join(f'model/save/{args.save}',
+                                f'{args.save}_swe-{epoch}.pkl'))
+                    
+                    torch.save(
+                        {name: (model_train.v_head.state_dict().cpu())},
+                        join(f'model/save/{args.save}',
+                                f'{args.save}_value-{epoch}.pkl')
+                    )
+                batch += 1
 
 
     wandb.finish()
