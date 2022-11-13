@@ -113,10 +113,10 @@ class PPOTrainer:
 
         self.ref_model = ref_model
         self.model = model
-        parameters = list(self.model.transformer.parameters())
-        print(type(parameters[0]))
-        print(self.model.v_head.parameters())
-        self.optimizer = Adam([parameters[0], self.model.v_head.parameters()], lr=self.ppo_params['lr'])
+
+        self.optimizer = Adam([{'params':self.model.transformer.get_input_embeddings.parameters(), 
+                                'params': self.model.v_head.parameters()}], 
+                            lr=self.ppo_params['lr'])
 
         if self.ppo_params['adap_kl_ctrl']:
             self.kl_ctl = AdaptiveKLController(self.ppo_params['init_kl_coef'],
