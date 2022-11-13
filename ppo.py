@@ -114,7 +114,7 @@ class PPOTrainer:
         self.ref_model = ref_model
         self.model = model
 
-        self.optimizer = Adam([{'params':self.model.transformer.get_input_embeddings.parameters(), 
+        self.optimizer = Adam([{'params':self.model.transformer.get_input_embeddings().parameters(), 
                                 'params': self.model.v_head.parameters()}], 
                             lr=self.ppo_params['lr'])
 
