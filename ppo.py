@@ -114,6 +114,8 @@ class PPOTrainer:
         self.ref_model = ref_model
         self.model = model
         parameters = list(self.model.transformer.parameters())
+        print(type(parameters[0]))
+        print(self.model.v_head.parameters())
         self.optimizer = Adam([parameters[0], self.model.v_head.parameters()], lr=self.ppo_params['lr'])
 
         if self.ppo_params['adap_kl_ctrl']:
