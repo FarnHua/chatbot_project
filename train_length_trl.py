@@ -397,7 +397,7 @@ def main():
 
 
     if 'gpt' in args.inter:
-        model_bot = GPT2HeadWithValueModel.from_pretrained(args.model)
+        model_bot = GPT2HeadWithValueModel(args.model)
         model_bot.to(device_0)
         model_bot.eval()
     
