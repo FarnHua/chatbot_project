@@ -264,6 +264,111 @@ def make_response(model, sentences, tokenizer, first_input):
 table_data = []
 
 def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward):
+    # loss = 0
+    # inputs_id = inputs_id.to(device_0) ## 8*29
+    # if args.emotion : 
+    #     emo_embed = emo_dict['<'+args.emotion+'>']
+    # bos = [1]
+    # eos = [2] ## [50256]
+    # decoder_input_ids = torch.LongTensor([[bos] * inputs_id.shape[0]]).squeeze(0).to(device_0)
+    # # train_sentences = []
+    # # inter_sentences = []
+    # # emotion_loss = []
+    # # for input_id in inputs:
+    # #   # input_id = torch.tensor([input_id]).to("cuda:0")
+    # #   input_id = torch.tensor([tokenizer.encode(input_id)]).to("cuda:0")
+    # #   input_id = torch.cat((torch.tensor([eos * n_tokens]).to("cuda:0"), input_id), dim=1)
+    # #   # train_reply_id = model_train.generate(input_id)
+    # #   output_train = model_train.generate(input_id, return_dict_in_generate=True, output_scores=True)
+    # #   emotion_loss.append(Variable(output_train.sequences_scores, requires_grad=True))
+    # #   train_reply_id = output_train.sequences
+    # #   train_sentences.append(tokenizer.batch_decode(train_reply_id, skip_special_tokens=True)[0])
+    # #   # print("TRAIN: ", tokenizer.batch_decode(train_reply_id, skip_special_tokens=True)[0])
+    # #   NEXT = tokenizer.batch_decode(input_id[:, 10:], skip_special_tokens=False)[0][1:] + ' ' + tokenizer.batch_decode(train_reply_id, skip_special_tokens=False)[0]
+    # #   NEXT = torch.tensor([tokenizer.encode(NEXT)]).to("cuda:0")
+    # #   with torch.no_grad():
+    # #     inter_reply_id = model_bot.generate(NEXT)
+    # #   inter_sentences.append(tokenizer.batch_decode(inter_reply_id, skip_special_tokens=True)[0])
+    #   # print("INTER: ", tokenizer.batch_decode(inter_reply_id, skip_special_tokens=True)[0])
+    # mask = mask.to(device_0)
+    
+    # output_train = model_train(inputs_id, decoder_input_ids = decoder_input_ids, past_key_values=None, attention_mask=mask)
+    # past = output_train['past_key_values']
+    # inputs_id = inputs_id.to(device_1)
+    # decoder_input_ids = decoder_input_ids.to(device_1)
+    # mask = mask.to(device_1)
+    
+    # with torch.no_grad():
+    #     # prev_input, past_bot = model_2(inputs_id, past=None, attention_mask=mask)
+    #   output2 = model_2(inputs_id, decoder_input_ids = decoder_input_ids, past_key_values=None, attention_mask=mask)
+    #   past_co = output2['past_key_values'] 
+    # prev_input = torch.LongTensor([[bos] * inputs_id.shape[0]]).squeeze(0).to(device_0) # (8,1)
+
+
+
+    # ######### all (8,) 
+    # temp_sentence = [[] for i in range(inputs_id.shape[0])]
+    # emotion_loss = [0 for i in range(inputs_id.shape[0])]
+    # coherence_loss = [0 for i in range(inputs_id.shape[0])]
+    # test_reward = [1 for i in range(inputs_id.shape[0])]
+    # #########
+
+
+    # append = torch.tensor([[1] for i in range(len(inputs_id))]).to(device_0)
+    # mask = torch.cat((mask, append), 1) 
+    # coh_score = 0
+    # for i in range(40): # 40 words
+    #     output = model_train(prev_input, decoder_input_ids = prev_input, past_key_values=past)
+    #     logits, past = output['logits'], output['past_key_values']
+    #     prev_input = prev_input.to(device_1)
+        
+
+    #     with torch.no_grad():
+    #         output = model_2(prev_input, decoder_input_ids = prev_input, past_key_values=past_co)
+    #         logits_co, past_co = output['logits'], output['past_key_values']
+    #     mask = torch.cat((mask, append), 1)
+    #     # print(logits.size()) ## (1, 8, 1, 50257)
+    #     logits = logits.squeeze(0).squeeze(1)
+    #     # print(logits.size()) ## (8, 50257)
+    #     logits = logits / temperature
+
+    #     logits = torch.softmax(logits, dim=-1)
+    #     with torch.no_grad():
+    #         logits_co = torch.softmax(logits_co.squeeze(0).squeeze(1) / temperature, dim=-1)
+    #     prev_input = torch.multinomial(logits[:], num_samples=1) #(8,1)
+        
+
+    #     probs = []
+    #     for j in range(inputs_id.shape[0]):
+    #         if i != 0 and temp_sentence[j][-1] == eos[0]: continue
+    #         probs.append(logits_co[j][prev_input[j][0].item()].item()) ## compute conditional prob
+    #         test_reward[j] *= logits_co[j][prev_input[j][0].item()].item()
+    #     if len(probs) == 0:
+    #         avg_prob = 0
+    #     else:
+    #         avg_prob = sum(probs) / len(probs)
+    #         coh_score += avg_prob
+
+    #     for j in range(inputs_id.shape[0]):
+    #         if i != 0 and temp_sentence[j][-1] == eos[0]: continue
+    #         ## prev_input.view(-1) ## size=(8)
+    #         temp_loss = F.cross_entropy(logits[j].unsqueeze(0), prev_input.view(-1)[j].unsqueeze(0))
+    #         coherence_loss[j] += (logits_co[j][prev_input[j][0].item()].item() - avg_prob) * temp_loss
+    #         emotion_loss[j] += temp_loss
+
+    #     if i == 0:
+    #         ## if first word of chatbot
+    #         for j in range(inputs_id.shape[0]):
+    #             temp_sentence[j].append(prev_input[j].item())
+    #         continue ## jump to second words
+    #     flag = 1 ## to ascertain whether all sentence complete
+        
+    #     for j in range(inputs_id.shape[0]):
+    #         if temp_sentence[j][-1] != eos[0]: 
+    #             flag = 0
+    #             temp_sentence[j].append(prev_input[j].item())
+    #     if flag == 1: break
+
     loss = 0
     inputs_id = inputs_id.to(device_0) ## 8*29
     if args.emotion : 
@@ -292,16 +397,16 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
       # print("INTER: ", tokenizer.batch_decode(inter_reply_id, skip_special_tokens=True)[0])
     mask = mask.to(device_0)
     
-    output_train = model_train(inputs_id, decoder_input_ids = decoder_input_ids, past_key_values=None, attention_mask=mask)
-    past = output_train['past_key_values']
-    inputs_id = inputs_id.to(device_1)
-    decoder_input_ids = decoder_input_ids.to(device_1)
-    mask = mask.to(device_1)
+    # output_train = model_train(inputs_id, decoder_input_ids = decoder_input_ids, past_key_values=None, attention_mask=mask)
+    # past = output_train['past_key_values']
+    # inputs_id = inputs_id.to(device_1)
+    # decoder_input_ids = decoder_input_ids.to(device_1)
+    # mask = mask.to(device_1)
     
-    with torch.no_grad():
-        # prev_input, past_bot = model_2(inputs_id, past=None, attention_mask=mask)
-      output2 = model_2(inputs_id, decoder_input_ids = decoder_input_ids, past_key_values=None, attention_mask=mask)
-      past_co = output2['past_key_values'] 
+    # with torch.no_grad():
+    #     # prev_input, past_bot = model_2(inputs_id, past=None, attention_mask=mask)
+    #   output2 = model_2(inputs_id, decoder_input_ids = decoder_input_ids, past_key_values=None, attention_mask=mask)
+    #   past_co = output2['past_key_values'] 
     prev_input = torch.LongTensor([[bos] * inputs_id.shape[0]]).squeeze(0).to(device_0) # (8,1)
 
 
@@ -315,18 +420,20 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
 
 
     append = torch.tensor([[1] for i in range(len(inputs_id))]).to(device_0)
-    mask = torch.cat((mask, append), 1) 
+    # mask = torch.cat((mask, append), 1) 
     coh_score = 0
+    past = None
+    past_co = None
     for i in range(40): # 40 words
-        output = model_train(prev_input, decoder_input_ids = prev_input, past_key_values=past)
+        output = model_train(inputs_id, attention_mask=mask, decoder_input_ids = prev_input, past_key_values=past)
         logits, past = output['logits'], output['past_key_values']
         prev_input = prev_input.to(device_1)
         
 
         with torch.no_grad():
-            output = model_2(prev_input, decoder_input_ids = prev_input, past_key_values=past_co)
+            output = model_2(inputs_id, attention_mask=mask, decoder_input_ids = prev_input, past_key_values=past_co)
             logits_co, past_co = output['logits'], output['past_key_values']
-        mask = torch.cat((mask, append), 1)
+        # mask = torch.cat((mask, append), 1)
         # print(logits.size()) ## (1, 8, 1, 50257)
         logits = logits.squeeze(0).squeeze(1)
         # print(logits.size()) ## (8, 50257)
@@ -368,7 +475,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
                 flag = 0
                 temp_sentence[j].append(prev_input[j].item())
         if flag == 1: break
-    decode_temp_sentence = tokenizer.batch_decode(temp_sentence, skip_special_tokens=False)
+    decode_temp_sentence = tokenizer.batch_decode(temp_sentence, skip_special_tokens=True)
     # print(emotion_loss)
     input_sentences = tokenizer.batch_decode(inputs_id[:, n_tokens:], skip_special_tokens=True)
 
@@ -382,8 +489,8 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     if 'gpt' in args.inter:
       # inter_response.extend(make_response(model_bot, decode_temp_sentence, tokenizer, first_input))
       for i in range(inputs_id.shape[0]):
-        NEXT = input_sentences[i][1:] + '</s> ' + decode_temp_sentence[i]
-        inter_reply = model_bot.generate(torch.tensor([tokenizer.encode(NEXT)]).to(device_0))
+        NEXT = input_sentences[i][1:] + '</s> <s>' + decode_temp_sentence[i]
+        inter_reply = model_bot.generate(torch.tensor([tokenizer.encode(NEXT)]).to(device_0), max_new_tokens = 120, min_length = 1)
         inter_response.append(tokenizer.batch_decode(inter_reply, skip_special_tokens=True)[0])
     if batch % 100 == 0:
         # print(f'batch: {batch}')
@@ -448,6 +555,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
         score = []
         for sens in sent_input:           
             sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
+            # print(sens[2].split())
             score.append(len(sens[2].split()))
         test_len = [len(s) for s in temp_sentence]
         test_reward = [test_reward[i] ** (1/test_len[i]) for i in range(inputs_id.shape[0])]
@@ -505,7 +613,7 @@ def main():
       )
     # Track hyperparameters and run metadata
     wandb.config.update(args)
-    wandb.config.update({"lr": 5e-3, 'epoch':1, "seed":100, 'batch_size':4, 
+    wandb.config.update({"lr": 5e-4, 'epoch':1, "seed":100, 'batch_size':4, 
         'init_from_vocab': True if args.initial == 'vocab' else False})
 
     
