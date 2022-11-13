@@ -166,7 +166,7 @@ class PPOTrainer:
                                                    rewards[idx:idx+1], query[idx:idx+1],
                                                    response[idx:idx+1], model_input[idx:idx+1])
                 all_stats.append(train_stats)
-                all_loss.append(loss.cpu())
+                all_loss.append(loss.detach().cpu().numpy())
         avg_loss = np.sum(all_loss) / k
         timing['time/ppo/optimize_step'] = time.time()-t
 

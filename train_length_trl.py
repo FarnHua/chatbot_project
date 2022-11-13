@@ -462,12 +462,14 @@ def main():
             response_tensors = []
             rewards = []
             i = 0
-
+            avg_r = 0
+            
            
             for inputs_id, mask, ll in tqdm(train_dataloader):
                 
                 response_ids, score, query, response, inter, avg_score = train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, fbs, n_tokens, batch)
                 # query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
+                avg_r += avg_score
                 query_tensors.append(inputs_id)
                 for response_id in response_ids:
                     response_tensors.append(response_id)
@@ -504,7 +506,7 @@ def main():
                     logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
                     logs['env/reward_dist'] = rewards.cpu().numpy()
                     wandb.log(logs)
-                    wandb.log({"reward": avg_score, "loss": avg_loss})
+                    wandb.log({"reward": avg_r / 16, "loss": avg_loss})
 
 
                     torch.cuda.empty_cache()
