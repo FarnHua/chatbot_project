@@ -512,12 +512,12 @@ def main():
                     torch.save(
                         {name: (model_train.transformer.state_dict()[name].cpu())},
                         join(f'model/save/{args.save}',
-                                f'{args.save}_swe-{epoch}.pkl'))
+                                f'{args.save}_swe-{batch}.pkl'))
                     
                     torch.save(
                         {name: (model_train.v_head.state_dict().cpu())},
                         join(f'model/save/{args.save}',
-                                f'{args.save}_value-{epoch}.pkl')
+                                f'{args.save}_value-{batch}.pkl')
                     )
                 batch += 1
 
