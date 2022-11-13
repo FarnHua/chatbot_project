@@ -445,7 +445,7 @@ def main():
         
 
 
-        epochs = []
+        batches = []
         querys = []
         responses = []
         inters = []
@@ -478,13 +478,13 @@ def main():
                     querys.append(query)
                     responses.append(response)
                     inters.append(inter)
-                    epochs.append(epoch)
+                    batches.append(batch)
                     record_rewards.append(score[0])
                     i = 1
 
-                if (batch + 1) % 16 == 0:
+                if (batch) % 16 == 0:
 
-                    game_data['epoch'] = batch
+                    game_data['batch'] = batch
                     game_data['query'] = querys
                     game_data['response'] = responses
                     game_data['inter'] = inters
@@ -495,16 +495,16 @@ def main():
                     rewards = torch.cat(rewards).to(device_0)
                     stats, avg_loss = ppo_trainer.step(query_tensors, response_tensors, rewards)            
                     
-                    timing['time/epoch'] = time.time()-t0
-                    table_rows = [list(r) for r in zip(game_data['epoch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
-                    logs.update({'game_log':wandb.Table(
-                        columns=['epoch', 'query', 'response', 'inter', 'reward'],
-                        rows=table_rows)})
-                    logs.update(timing)
-                    logs.update(stats)
-                    logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
-                    logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
-                    logs['env/reward_dist'] = rewards.cpu().numpy()
+                    # timing['time/epoch'] = time.time()-t0
+                    # table_rows = [list(r) for r in zip(game_data['batch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
+                    # logs.update({'game_log':wandb.Table(
+                    #     columns=['epoch', 'query', 'response', 'inter', 'reward'],
+                    #     rows=table_rows)})
+                    # logs.update(timing)
+                    # logs.update(stats)
+                    # logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
+                    # logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
+                    # logs['env/reward_dist'] = rewards.cpu().numpy()
                     wandb.log(logs)
                     wandb.log({"reward": avg_r / 16, "loss": avg_loss})
 
