@@ -8,7 +8,7 @@ from os.path import join
 import re
 from argparse import ArgumentParser
 
-from Emo_detector.detect_emotion import re_emo_score, prepare_model
+# from Emo_detector.detect_emotion import re_emo_score, prepare_model
 from transformers import  GPT2Tokenizer
 import tqdm
 import torch
