@@ -245,8 +245,8 @@ def train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, batch_si
     for i in range(40): # 40 words
 
         prev_input = prev_input.to(device_0)
-        output = model_train(prev_input, past_key_values=past)
-        logits, past = output['logits'], output['past_key_values']
+        logits, past, v = model_train(prev_input, past_key_values=past)
+        
         
         
         mask = torch.cat((mask, append), 1)
