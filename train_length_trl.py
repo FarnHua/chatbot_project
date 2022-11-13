@@ -383,7 +383,7 @@ def main():
     ### setting  softprompt
     n_tokens = args.n_tokens
     initialize_from_vocab = config.init_from_vocab
-    s_wte = SoftEmbedding(model_train.get_input_embeddings(), 
+    s_wte = SoftEmbedding(model_train.transformer.get_input_embeddings(), 
                       n_tokens=n_tokens, 
                       initialize_from_vocab=initialize_from_vocab)
     model_train.transformer.set_input_embeddings(s_wte)
