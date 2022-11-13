@@ -451,7 +451,7 @@ def main():
         inters = []
         record_rewards = []
 
-        for epoch in tqdm(range(int(np.ceil(config["steps"]/config['batch_size'])))):
+        for epoch in range(1):
             torch.cuda.empty_cache()
             logs = dict()
             game_data = dict()
@@ -503,7 +503,7 @@ def main():
             wandb.log(logs)
             
             
-            if (epoch+1) % 20 == 0:
+            if (batch+1) % 20 == 0:
                 name = 'transformer.wte.learned_embedding' 
                 # idx = random.randint(1, len(parameters_check) - 1)
                 # param = list(model_train.parameters())
