@@ -519,7 +519,7 @@ def main():
                     response_tensors = []
                     rewards = []
                     i = 0
-                
+                    avg_r = 0
                 
                 if (batch + 1) % 100 == 0:
                     name = 'transformer.wte.learned_embedding' 
