@@ -527,12 +527,12 @@ def main():
                     # param = list(model_train.parameters())
                     # check_valid(param[idx], parameters_check[idx])
                     torch.save(
-                        {name: (model_train.transformer.state_dict()[name].cpu())},
+                        {name: (model_train.transformer.state_dict()[name])},
                         join(f'model/save/{args.save}',
                                 f'{args.save}_swe-{batch}.pkl'))
                     
                     torch.save(
-                        {name: (model_train.v_head.state_dict().cpu())},
+                        {name: (model_train.v_head.state_dict())},
                         join(f'model/save/{args.save}',
                                 f'{args.save}_value-{batch}.pkl')
                     )
