@@ -204,7 +204,7 @@ class PPOTrainer:
 
             values.append(v[:, -gen_len-1:-1].detach())
             logprobs.append(logprobs_from_logits(logits[:,:-1,:], m_input[:,1:])[:, -gen_len:].detach())
-            ref_logprobs.append(logprobs_from_logits(ref_logits[:,:-1,:], m_input[:,1:])[:, -gen_len:].detach())
+            ref_logprobs.append(logprobs_from_logits(ref_logits[:,:-1,:], m_input[:,self.n_tokens+1:])[:, -gen_len:].detach())
 
         return torch.cat(logprobs), torch.cat(ref_logprobs), torch.cat(values)
 
