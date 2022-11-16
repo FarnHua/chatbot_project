@@ -199,13 +199,8 @@ class PPOTrainer:
 
         for i in range(int(self.ppo_params['batch_size']/fbs)):
             m_input = model_input[i*fbs:(i+1)*fbs]
-            ### concate softprompt
-            print("m_input: ###########\n")
-            print(m_input)
-            assert(0)
-            ###
             logits, _, v = self.model(m_input)
-            ref_logits, _, _ = self.ref_model(m_input)
+            ref_logits, _, _ = self.ref_model(m_input[:, self.n_tokens : ])
 
             values.append(v[:, -gen_len-1:-1].detach())
             logprobs.append(logprobs_from_logits(logits[:,:-1,:], m_input[:,1:])[:, -gen_len:].detach())
