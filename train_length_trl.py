@@ -511,7 +511,7 @@ def main():
                     record_rewards.append(score[0])
                     i = 1
 
-                if (batch + 1) % 16 == 0:
+                if (batch) % 16 == 0:
 
                     game_data['batch'] = batch
                     game_data['query'] = querys
