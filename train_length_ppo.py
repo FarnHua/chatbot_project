@@ -243,8 +243,9 @@ def train(model_train, inputs_id, mask, model2, model_c, model_bot, tokenizer, l
 
     ## coherence
     with torch.no_grad():
-      output2 = model_c(inputs_id[:][n_tokens:], past_key_values=None, attention_mask=mask)
-      past_c = output2['past_key_values'] 
+        print(inputs_id)
+        output2 = model_c(inputs_id[:][n_tokens:], past_key_values=None, attention_mask=mask)
+        past_c = output2['past_key_values'] 
    
      ##### generate p_theta and p_theta' with eval mode #####
     model_train.eval()
