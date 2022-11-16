@@ -110,10 +110,10 @@ class PPOTrainer:
         """
         self.ppo_params = self.default_params
         self.ppo_params.update(ppo_params)
-
+        self.n_tokens = self.ppo_params['n_tokens']
         self.ref_model = ref_model
         self.model = model
-
+        
         self.optimizer = Adam([{'params':self.model.transformer.get_input_embeddings().parameters(), 
                                 'params': self.model.v_head.parameters()}], 
                             lr=self.ppo_params['lr'])
@@ -199,6 +199,11 @@ class PPOTrainer:
 
         for i in range(int(self.ppo_params['batch_size']/fbs)):
             m_input = model_input[i*fbs:(i+1)*fbs]
+            ### concate softprompt
+            print("m_input: ###########\n")
+            print(m_input)
+            assert(0)
+            ###
             logits, _, v = self.model(m_input)
             ref_logits, _, _ = self.ref_model(m_input)
 

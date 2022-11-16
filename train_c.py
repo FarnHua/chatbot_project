@@ -230,7 +230,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     
     with torch.no_grad():
         # prev_input, past_bot = model_2(inputs_id, past=None, attention_mask=mask)
-      output2 = model_2(inputs_id, past_key_values=None, attention_mask=mask)
+      output2 = model_2(inputs_id[:][n_tokens:], past_key_values=None, attention_mask=mask)
       past_co = output2['past_key_values'] 
     prev_input = torch.LongTensor([[eos] * inputs_id.shape[0]]).squeeze(0).to(device_0) # (8,1)
 

@@ -81,18 +81,21 @@ class SoftEmbedding(nn.Module):
                 wte: nn.Embedding,
                 n_tokens: int = 10, 
                 random_range: float = 0.5,
-                initialize_from_vocab: bool = True):
+                initialize_from_vocab: bool = True,
+                commonWords_id: list = None):
         """appends learned embedding to 
         Args:
             wte (nn.Embedding): original transformer word embedding
             n_tokens (int, optional): number of tokens for task. Defaults to 10.
             random_range (float, optional): range to init embedding (if not initialize from vocab). Defaults to 0.5.
             initialize_from_vocab (bool, optional): initalizes from default vocab. Defaults to True.
+            commonWords_id(list, optional): use commonwords to initialize
         """
         super(SoftEmbedding, self).__init__()
-        self.wte = wte
+        self.wte = wte  
         self.n_tokens = n_tokens
-        self.learned_embedding = nn.parameter.Parameter(self.initialize_embedding(wte, n_tokens, random_range, initialize_from_vocab))
+        self.learned_embedding = nn.parameter.Parameter(self.initialize_embedding(wte, n_tokens, 
+                            random_range, initialize_from_vocab, commonWords_id))
         ## (10,768)
         
             
@@ -100,7 +103,8 @@ class SoftEmbedding(nn.Module):
                              wte: nn.Embedding,
                              n_tokens: int = 10, 
                              random_range: float = 0.5, 
-                             initialize_from_vocab: bool = True):
+                             initialize_from_vocab: bool = True,
+                             commonWords_id: list = None):
         """initializes learned embedding
         Args:
             same as __init__
@@ -109,7 +113,11 @@ class SoftEmbedding(nn.Module):
         """
         
         if initialize_from_vocab:
-            return self.wte.weight[:n_tokens].clone().detach()
+            if commonWords_id != None:
+                return self.wte.weight[commonWords_id].clone().detach()
+            else:
+                return self.wte.weight[:n_tokens].clone().detach()
+
         return torch.FloatTensor(n_tokens, wte.weight.size(1)).uniform_(-random_range, random_range)
             
     def forward(self, tokens):
@@ -290,12 +298,12 @@ def train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, batch_si
     if 'gpt' in args.inter:
         inter_response.extend(make_response(model_bot, decode_temp_sentence, tokenizer, first_input))
     
-    if batch % 100 == 0:
+    if batch % 40 == 0:
         # print(f'batch: {batch}')
         inpu_t = [tokenizer.decode(x[n_tokens:]) for x in inputs_id]
         my_table = wandb.Table(columns=['batch','input', 'chatbot', 'inter']) 
         for i in range(inputs_id.shape[0]):
-            table_data.append([batch,inpu_t[i] ,decode_temp_sentence[i], inter_response[i][0]])
+            table_data.append([batch,inpu_t[i] ,decode_temp_sentence[i].replace('<|endoftext|>', ''), inter_response[i][0]])
         for t in table_data:
             my_table.add_data(*t)
         # print('************** save to table **********')
@@ -382,9 +390,28 @@ def main():
     ### setting  softprompt
     n_tokens = args.n_tokens
     initialize_from_vocab = config.init_from_vocab
+
+    ## init from commonWords
+    if initialize_from_vocab:
+      random.seed(config.seed)
+      with open("commonWords.txt") as f:
+          words = f.read().splitlines()
+          # print(args.n_tokens)
+          random_num = random.sample(range(0, 3000), n_tokens)
+          commonWords = words[random_num[0]]
+          for i in range(1, n_tokens):
+            commonWords = commonWords + ' ' + words[random_num[i]]
+          commonWords_id = tokenizer.encode(commonWords)
+          commonWords_id = commonWords_id[:n_tokens]
+    else:
+      commonWords_id = None
+
+    initialize_from_vocab = config.init_from_vocab
     s_wte = SoftEmbedding(model_train.transformer.get_input_embeddings(), 
                       n_tokens=n_tokens, 
-                      initialize_from_vocab=initialize_from_vocab)
+                      initialize_from_vocab=initialize_from_vocab,
+                      commonWords_id=commonWords_id)
+
     model_train.transformer.set_input_embeddings(s_wte)
 
     parameters = list(model_train.transformer.parameters())
@@ -418,6 +445,7 @@ def main():
         "batch_size": 256,
         "forward_batch_size": 16,
         "ppo_epochs": 4,
+        "n_tokens": n_tokens
     }
     ppo_trainer = PPOTrainer(model_train, model_bot, **ppo_config)
     wandb.config.update(ppo_config)
@@ -472,7 +500,11 @@ def main():
                 avg_r += avg_score
                 query_tensors.append(inputs_id)
                 for response_id in response_ids:
-                    response_tensors.append(response_id)
+                    response_tensors.append(response_id[:, -1])
+
+                    print("show_response:   ====================\n")
+                    print(response_ids[:, -1])
+                    assert(0)
                 rewards.append(score)
                 if i == 0:
                     querys.append(query)
@@ -505,7 +537,7 @@ def main():
                     # logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
                     # logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
                     # logs['env/reward_dist'] = rewards.cpu().numpy()
-                    wandb.log(logs)
+                    # wandb.log(logs)
                     wandb.log({"reward": avg_r / 16, "loss": avg_loss})
 
 
