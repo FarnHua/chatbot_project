@@ -501,10 +501,11 @@ def main():
                 avg_r += avg_score
                 query_tensors.append(inputs_id)
                 for response_id in response_ids:
-                    response_tensors.append(response_ids[:][-1])
+                    response_tensors.append(response_id[:-1])
 
                     print("show_response:   ====================\n")
-                    print(response_ids[:][-1])
+                    print(response_id[-1])
+                    print(response_id)
                     assert(0)
                 rewards.append(score)
                 if i == 0:
