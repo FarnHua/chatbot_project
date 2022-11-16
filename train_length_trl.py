@@ -174,6 +174,7 @@ temperature = 1 #2.2
 top_k = 50        #50
 top_p = 0.95
 device_0 = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(device_0)
 
 def make_response(model, sentences, tokenizer, first_input):
     with torch.no_grad():
