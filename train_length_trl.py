@@ -537,7 +537,7 @@ def main():
                     # logs['env/reward_dist'] = rewards.cpu().numpy()
                     # wandb.log(logs)
                     wandb.log({"reward": avg_r / 16, "loss": avg_loss})
-                    print(f"Reward: {avg_r}, Loss: {avg_loss}")
+                    print(f"Reward: {avg_r/16}, Loss: {avg_loss}")
 
                     torch.cuda.empty_cache()
                     logs = dict()
