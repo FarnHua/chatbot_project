@@ -197,18 +197,16 @@ class PPOTrainer:
         ref_logprobs = []
         values = []
 
+        # 16 input per iteration
         for i in range(int(self.ppo_params['batch_size']/fbs)):
             m_input = model_input[i*fbs:(i+1)*fbs]
+            
             logits, _, v = self.model(m_input)
             ref_logits, _, _ = self.ref_model(m_input[:, self.n_tokens : ])
-            print(ref_logits.size())
-            print(logits.size())
+            
             values.append(v[:, -gen_len-1:-1].detach())
             logprobs.append(logprobs_from_logits(logits[:,:-1,:], m_input[:,1:])[:, -gen_len:].detach())
             ref_logprobs.append(logprobs_from_logits(ref_logits[:,:-1,:], m_input[:,self.n_tokens+1:])[:, -gen_len:].detach())
-        print(torch.cat(logprobs).size())
-        print(torch.cat(ref_logprobs).size())
-        assert(0)
         return torch.cat(logprobs), torch.cat(ref_logprobs), torch.cat(values)
 
     def train_minibatch(self, logprobs, values, rewards, query, response, model_input):

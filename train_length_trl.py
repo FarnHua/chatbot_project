@@ -462,6 +462,7 @@ def main():
     batch_size = ppo_config['batch_size']
     fbs = ppo_config['forward_batch_size']
     post = post_set('data/train_raw.tsv', tokenizer, n_tokens)
+    ## batch=16
     train_dataloader = DataLoader(post, batch_size=int(config['batch_size']/fbs), shuffle=True, num_workers=2)
 
     batch = 0
@@ -511,8 +512,8 @@ def main():
                     record_rewards.append(score[0])
                     i = 1
 
-                if (batch) % 16 == 0:
-
+                if (batch + 1) % 16 == 0:
+                    ## foward 256 queries and 256 response into ppo_train.step
                     game_data['batch'] = batch
                     game_data['query'] = querys
                     game_data['response'] = responses
@@ -536,7 +537,7 @@ def main():
                     # logs['env/reward_dist'] = rewards.cpu().numpy()
                     # wandb.log(logs)
                     wandb.log({"reward": avg_r / 16, "loss": avg_loss})
-
+                    print(f"Reward: {avg_r}, Loss: {avg_loss}")
 
                     torch.cuda.empty_cache()
                     logs = dict()
