@@ -420,7 +420,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, tokenizer
             sent_input.append([input_sentences[j%inputs_id.shape[0]], decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j]])
         score = []
         for sens in sent_input:           
-            sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
+            # sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
             # print(sens[2].split())
             score.append(len(sens[2].split()))
         test_len = [len(s) for s in temp_sentence]
