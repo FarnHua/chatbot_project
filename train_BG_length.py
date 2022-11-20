@@ -503,7 +503,7 @@ def main():
     tokenizer = BlenderbotTokenizer.from_pretrained(mname)
     # model_train = GPT2LMHeadModel.from_pretrained(args.model) 
     # model_2 = GPT2LMHeadModel.from_pretrained(args.model)
-    tokenizer_gpt2 = GPT2Tokenizer.from_pretrained('args.gpt')
+    tokenizer_gpt2 = GPT2Tokenizer.from_pretrained(args.gpt)
     
     
 
