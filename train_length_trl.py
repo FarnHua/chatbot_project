@@ -517,7 +517,7 @@ def main():
 
                 if (batch + 1) % 16 == 0:
                     ## foward 256 queries and 256 response into ppo_train.step
-                    game_data['batch'] = batch
+                    game_data['batch'] = batches
                     game_data['query'] = querys
                     game_data['response'] = responses
                     game_data['inter'] = inters
