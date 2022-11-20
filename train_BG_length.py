@@ -354,8 +354,6 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, tokenizer
     #     l = ll[j]
     #     first_input[j] = first_input[j][n_tokens:n_tokens+l+1]
     #     first_input[j][-1] = eos[0]
-    print(first_input)
-    assert(0)
     inter_response = []
     if 'gpt' in args.inter:
       inter_response.extend(make_response(model_bot, decode_temp_sentence, tokenizer_gpt2, first_input))
