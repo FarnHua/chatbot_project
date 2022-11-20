@@ -386,7 +386,10 @@ def main():
     torch.cuda.manual_seed(config.seed)
     model_train = GPT2HeadWithValueModel(args.model)
     tokenizer = GPT2Tokenizer.from_pretrained(args.model)
-    sep = tokenizer.sep_token_id
+
+    print(tokenizer.sep_token, tokenizer.sep_token_id)
+    assert(0)
+    
 
     ### setting  softprompt
     n_tokens = args.n_tokens
@@ -432,7 +435,7 @@ def main():
     ### init ppo trainer
 
     ppo_config = {
-        "lr": 1.41e-5,
+        "lr": 1.41e-3,
         "adap_kl_ctrl": True,
         "init_kl_coef":0.2,
         "target": 6,
@@ -441,7 +444,7 @@ def main():
         "lam":0.95,
         "cliprange": .2,
         "cliprange_value":.2,
-        "vf_coef":.1,
+        "vf_coef":.1, 
         "steps": 51200,
         "batch_size": 256,
         "forward_batch_size": 16,
@@ -499,8 +502,10 @@ def main():
                 
                 response_ids, score, query, response, inter, avg_score = train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, fbs, n_tokens, batch)
                 # query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
+                
                 avg_r += avg_score
-                query_tensors.append(inputs_id)
+                # query_tensors.append(inputs_id)
+                query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
                 for response_id in response_ids:
                     response_tensors.append(response_id[:-1])
                 rewards.append(score)
@@ -525,17 +530,17 @@ def main():
                     rewards = torch.cat(rewards).to(device_0)
                     stats, avg_loss = ppo_trainer.step(query_tensors, response_tensors, rewards)            
                     
-                    # timing['time/epoch'] = time.time()-t0
-                    # table_rows = [list(r) for r in zip(game_data['batch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
-                    # logs.update({'game_log':wandb.Table(
-                    #     columns=['epoch', 'query', 'response', 'inter', 'reward'],
-                    #     rows=table_rows)})
-                    # logs.update(timing)
-                    # logs.update(stats)
-                    # logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
-                    # logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
-                    # logs['env/reward_dist'] = rewards.cpu().numpy()
-                    # wandb.log(logs)
+                    timing['time/epoch'] = time.time()-t0
+                    table_rows = [list(r) for r in zip(game_data['batch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
+                    logs.update({'game_log':wandb.Table(
+                        columns=['epoch', 'query', 'response', 'inter', 'reward'],
+                        rows=table_rows)})
+                    logs.update(timing)
+                    logs.update(stats)
+                    logs['env/reward_mean'] = torch.mean(rewards).cpu().numpy()
+                    logs['env/reward_std'] = torch.std(rewards).cpu().numpy()
+                    logs['env/reward_dist'] = rewards.cpu().numpy()
+                    wandb.log(logs)
                     wandb.log({"reward": avg_r / 16, "loss": avg_loss})
                     print(f"Reward: {avg_r/16}, Loss: {avg_loss}")
 
@@ -553,6 +558,7 @@ def main():
                 
                 if (batch + 1) % 100 == 0:
                     name = 'transformer.wte.learned_embedding' 
+                    name_v = "value_head"
                     # idx = random.randint(1, len(parameters_check) - 1)
                     # param = list(model_train.parameters())
                     # check_valid(param[idx], parameters_check[idx])
@@ -562,7 +568,7 @@ def main():
                                 f'{args.save}_swe-{batch}.pkl'))
                     
                     torch.save(
-                        {name: (model_train.v_head.state_dict())},
+                        {name_v: (model_train.v_head.state_dict())},
                         join(f'model/save/{args.save}',
                                 f'{args.save}_value-{batch}.pkl')
                     )
