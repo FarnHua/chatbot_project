@@ -386,7 +386,7 @@ def main():
     torch.cuda.manual_seed(config.seed)
     model_train = GPT2HeadWithValueModel(args.model)
     tokenizer = GPT2Tokenizer.from_pretrained(args.model)
-
+    print(tokenizer)
     print(tokenizer.sep_token, tokenizer.sep_token_id)
     assert(0)
     
