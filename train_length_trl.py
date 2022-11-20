@@ -323,13 +323,13 @@ def train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, batch_si
         sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()), decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j][0]])
         
         if j == 0:
-            query = tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
-            response = decode_temp_sentence[j%inputs_id.shape[0]].replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
-            inter = inter_response[j][0].replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
+            query = tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()).replace('[SEP]', '').replace('[CLS]', '').replace('<|endoftext|>', '')
+            response = decode_temp_sentence[j%inputs_id.shape[0]].replace('[SEP]', '').replace('[CLS]', '')
+            inter = inter_response[j][0].replace('[SEP]', '').replace('[CLS]', '')
 
     temp_score = []
     for sens in sent_input:           
-        sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
+        sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '')
         temp_score.append(len(sens[2].split()))
     # test_len = [len(s) for s in temp_sentence]
     score = np.array(temp_score) / len(args.inter)
@@ -498,6 +498,7 @@ def main():
            
             for inputs_id, mask, ll in tqdm(train_dataloader):
                 
+                batch += 1
                 response_ids, score, query, response, inter, avg_score = train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, fbs, n_tokens, batch)
                 # query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
                 
@@ -515,7 +516,7 @@ def main():
                     record_rewards.append(score[0])
                     i = 1
 
-                if (batch + 1) % 16 == 0:
+                if batch % 16 == 0:
                     ## foward 256 queries and 256 response into ppo_train.step
                     game_data['batch'] = batches
                     game_data['query'] = querys
@@ -531,7 +532,7 @@ def main():
                     timing['time/epoch'] = time.time()-t0
                     table_rows = [list(r) for r in zip(game_data['batch'], game_data['query'], game_data['response'], game_data['inter'], game_data['reward'])]
                     logs.update({'game_log':wandb.Table(
-                        columns=['epoch', 'query', 'response', 'inter', 'reward'],
+                        columns=['batch', 'query', 'response', 'inter', 'reward'],
                         rows=table_rows)})
                     logs.update(timing)
                     logs.update(stats)
@@ -570,7 +571,7 @@ def main():
                         join(f'model/save/{args.save}',
                                 f'{args.save}_value-{batch}.pkl')
                     )
-                batch += 1
+                
 
 
     wandb.finish()

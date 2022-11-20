@@ -349,7 +349,8 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, tokenizer
     eos = [tokenizer_gpt2.encoder["<|endoftext|>"]]
     # first_input = list(inputs_id.cpu().detach().numpy())
     first_input = [tokenizer_gpt2.encode(x) for x in input_sentences]
-    print(torch.Tensor(first_input).size())
+    print(first_input)
+    # print(torch.Tensor(first_input).size())
     assert(0)
     # for j in range(inputs_id.shape[0]):
     #     l = ll[j]
