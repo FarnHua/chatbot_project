@@ -344,17 +344,18 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, tokenizer
         if flag == 1: break
     decode_temp_sentence = tokenizer.batch_decode(temp_sentence, skip_special_tokens=True) # list[str]
     input_sentences = tokenizer.batch_decode(inputs_id[:, n_tokens:], skip_special_tokens=True)
-    print(input_sentences)
+    
     # eos = [2]
     eos = [tokenizer_gpt2.encoder["<|endoftext|>"]]
     # first_input = list(inputs_id.cpu().detach().numpy())
     first_input = [tokenizer_gpt2.encode(x) for x in input_sentences]
-    print(first_input)
-    assert(0)
+    first_input = [x + eos for x in first_input]
     # for j in range(inputs_id.shape[0]):
     #     l = ll[j]
     #     first_input[j] = first_input[j][n_tokens:n_tokens+l+1]
     #     first_input[j][-1] = eos[0]
+    print(first_input)
+    assert(0)
     inter_response = []
     if 'gpt' in args.inter:
       inter_response.extend(make_response(model_bot, decode_temp_sentence, tokenizer_gpt2, first_input))
