@@ -432,10 +432,10 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, tokenizer
     mean_score = np.mean(score)
     for j in range(inputs_id.shape[0]):
         if reward == 'length' or 'sw':
-            loss += (score[j] - mean_score) * emotion_loss[j]
+            loss += (score[j] - mean_score) * emotion_loss[j] * (1 - args.ra)
         else:
             loss -= (score[j] - mean_score) * emotion_loss[j] #/ len(temp_sentence[j])
-        # loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
+        loss += coherence_loss[j] * args.ra #/ len(temp_sentence[j])
     
     if reward == 'sw':
         return loss, sum(score), coh_score
@@ -451,7 +451,7 @@ def main():
     parser.add_argument("--writer", type=str, default="")
     parser.add_argument("--save", type=str, default="model/save/")
     parser.add_argument("--model", type=str, default="facebook/blenderbot-400M-distill")
-    parser.add_argument("--ra", type=float, default=3)
+    parser.add_argument("--ra", type=float, default=.5)
     parser.add_argument("--inter", type=str, default="gpt", nargs='+', required=True)
     parser.add_argument("--n_tokens", type=int, default=10)
     parser.add_argument("--sw", type=str, default=None)
