@@ -386,9 +386,7 @@ def main():
     torch.cuda.manual_seed(config.seed)
     model_train = GPT2HeadWithValueModel(args.model)
     tokenizer = GPT2Tokenizer.from_pretrained(args.model)
-    print(tokenizer)
-    print(tokenizer.sep_token, tokenizer.sep_token_id)
-    assert(0)
+    
     
 
     ### setting  softprompt
@@ -505,7 +503,7 @@ def main():
                 
                 avg_r += avg_score
                 # query_tensors.append(inputs_id)
-                query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
+                # query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
                 for response_id in response_ids:
                     response_tensors.append(response_id[:-1])
                 rewards.append(score)
