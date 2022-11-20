@@ -502,7 +502,7 @@ def main():
                 # query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
                 
                 avg_r += avg_score
-                # query_tensors.append(inputs_id)
+                query_tensors.append(inputs_id)
                 # query_tensors.append(torch.cat((inputs_id, torch.LongTensor([[sep] for x in range(inputs_id.shape[0])])), axis=-1))
                 for response_id in response_ids:
                     response_tensors.append(response_id[:-1])
