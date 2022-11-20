@@ -417,9 +417,10 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, tokenizer
         for j in range(inputs_id.shape[0]*len(args.inter)):
             l = ll[j%inputs_id.shape[0]]
             # sent_input.append([tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()), decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j][0]])
-            sent_input.append([input_sentences[j%inputs_id.shape[0]], decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j]])
+            sent_input.append([input_sentences[j%inputs_id.shape[0]], decode_temp_sentence[j%inputs_id.shape[0]], inter_response[j][0]])
         score = []
-        for sens in sent_input:           
+        for sens in sent_input: 
+            # print(sens[2])          
             # sen = (sens[0] + sens[1] + sens[2]).replace('[SEP]', '').replace('[CLS]', '').replace(' ', '')
             # print(sens[2].split())
             score.append(len(sens[2].split()))
