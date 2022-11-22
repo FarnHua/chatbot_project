@@ -324,7 +324,7 @@ def train(model_train, inputs_id, mask, model_bot, tokenizer, ll, args, batch_si
         
         if j == 0:
             query = tokenizer.decode(inputs_id[j%inputs_id.shape[0]][n_tokens:].tolist()).replace('[SEP]', '').replace('[CLS]', '').replace('<|endoftext|>', '')
-            response = decode_temp_sentence[j%inputs_id.shape[0]].replace('[SEP]', '').replace('[CLS]', '')
+            response = decode_temp_sentence[j%inputs_id.shape[0]].replace('[SEP]', '').replace('[CLS]', '').replace('<|endoftext|>', '')
             inter = inter_response[j][0].replace('[SEP]', '').replace('[CLS]', '')
 
     temp_score = []
