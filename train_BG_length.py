@@ -211,7 +211,7 @@ device_1 = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def make_response(model, sentences, tokenizer, first_input):
     with torch.no_grad():
-
+        print(sentences)
         sentences = [tokenizer.encode(x) for x in sentences]
         print(sentences)
         assert(0)
