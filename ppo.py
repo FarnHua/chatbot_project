@@ -104,7 +104,7 @@ class PPOTrainer:
                 'cliprange' (float): Range for clipping in PPO policy gradient loss, default: 0.2
                 'vf_coef' (float): Scaling factor for value loss, default: 0.1
                 'adap_kl_ctrl' (bool): Use adaptive KL control, otherwise linear, default: True
-                'init_kl_coef' (float): Initial KL penalty coefficient (used for adaptive and linear control), default: 0.2
+                !!'init_kl_coef' (float): Initial KL penalty coefficient (used for adaptive and linear control), default: 0.2
                 'target' (float): Target KL value for adaptive KL control, default: 6.0
                 'horizon' (float): Horizon for adaptive KL control, default: 10000
         """

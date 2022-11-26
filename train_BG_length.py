@@ -213,6 +213,8 @@ def make_response(model, sentences, tokenizer, first_input):
     with torch.no_grad():
 
         sentences = [tokenizer.encode(x) for x in sentences]
+        print(sentences)
+        assert(0)
         t = []
         for i in range(len(sentences)):
             t_0 = [0 for i in range(len(list(first_input[i])))]
