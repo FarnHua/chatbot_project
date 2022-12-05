@@ -22,6 +22,7 @@ from torch.nn.utils.rnn import pad_sequence
 from lsp_model.optim import Adam
 from torch.utils.data.dataset import Dataset
 from torch.autograd import Variable
+from decoding import original, sampling
 
 import string
 from tqdm import tqdm
@@ -263,7 +264,7 @@ def make_response(model, sentences, tokenizer, first_input):
 
 table_data = []
 
-def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward):
+def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward, temperature = 1.0, top_k = 0, top_p = 0.0):
     # loss = 0
     # inputs_id = inputs_id.to(device_0) ## 8*29
     # if args.emotion : 
@@ -424,24 +425,37 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     coh_score = 0
     past = None
     past_co = None
+    encoder_outputs = None
+    encoder_outputs_co = None
     for i in range(40): # 40 words
-        output = model_train(inputs_id, attention_mask=mask, decoder_input_ids = prev_input, past_key_values=past)
+        if encoder_outputs is None:
+          output = model_train(inputs_id, attention_mask=mask, decoder_input_ids = prev_input, past_key_values=past, output_hidden_states=True, return_dict=True)
+          encoder_outputs = [output['encoder_last_hidden_state']]
+        else:
+          output = model_train(encoder_outputs=encoder_outputs, attention_mask=mask, decoder_input_ids = prev_input, past_key_values=past)
         logits, past = output['logits'], output['past_key_values']
         prev_input = prev_input.to(device_1)
         
 
         with torch.no_grad():
-            output = model_2(inputs_id, attention_mask=mask, decoder_input_ids = prev_input, past_key_values=past_co)
-            logits_co, past_co = output['logits'], output['past_key_values']
+          if encoder_outputs_co is None:
+            output = model_2(inputs_id[:, n_tokens:], attention_mask=mask[:, n_tokens:], decoder_input_ids = prev_input, past_key_values=past_co, output_hidden_states=True, return_dict=True)
+            encoder_outputs_co = [output['encoder_last_hidden_state']]
+          else:
+            output = model_2(encoder_outputs=encoder_outputs_co, attention_mask=mask[:, n_tokens:], decoder_input_ids = prev_input, past_key_values=past_co)
+          logits_co, past_co = output['logits'], output['past_key_values']
         # mask = torch.cat((mask, append), 1)
         # print(logits.size()) ## (1, 8, 1, 50257)
         logits = logits.squeeze(0).squeeze(1)
         # print(logits.size()) ## (8, 50257)
-        logits = logits / temperature
+        # logits = logits / temperature
 
-        logits = torch.softmax(logits, dim=-1)
+        # logits = torch.softmax(logits, dim=-1)
+        # logits = original(logits, temperature)
+        logits = sampling(logits, top_k = top_k, top_p = top_p, temperature = temperature)
         with torch.no_grad():
-            logits_co = torch.softmax(logits_co.squeeze(0).squeeze(1) / temperature, dim=-1)
+            logits_co = logits_co.squeeze(0).squeeze(1)
+            logits_co = sampling(logits, top_k = top_k, top_p = top_p, temperature = temperature)
         prev_input = torch.multinomial(logits[:], num_samples=1) #(8,1)
         
 
@@ -476,6 +490,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
                 temp_sentence[j].append(prev_input[j].item())
         if flag == 1: break
     decode_temp_sentence = tokenizer.batch_decode(temp_sentence, skip_special_tokens=True)
+    #print(decode_temp_sentence)
     # print(emotion_loss)
     input_sentences = tokenizer.batch_decode(inputs_id[:, n_tokens:], skip_special_tokens=True)
 
@@ -590,6 +605,9 @@ def main():
     parser.add_argument("--sw", type=str, default=None)
     parser.add_argument("--len", type=str, default=None)
     parser.add_argument("--initial", type=str, default='vocab')
+    parser.add_argument("--top_k", type=int, default=0)
+    parser.add_argument("--top_p", type=float, default=0.0)
+    parser.add_argument("--temperature", type=float, default=1.0)
     args = parser.parse_args()
 
     if not args.emotion and not args.sw and not args.len :
@@ -609,7 +627,7 @@ def main():
       project="chatbot_softprompt", 
       # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
       name=f"{args.save}"
-      #,entity="chatbot_ntu"
+      ,entity="chatbot_ntu"
       )
     # Track hyperparameters and run metadata
     wandb.config.update(args)
@@ -739,7 +757,7 @@ def main():
         model_train.train()
         for inputs_id, mask, ll in tqdm(train_dataloader):
             batch += 1
-            batch_loss, score, coh_score = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward)
+            batch_loss, score, coh_score = train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args, batch_size, n_tokens,  batch, reward, temperature = args.temperature, top_k = args.top_k, top_p = args.top_p)
             loss += batch_loss
 
             test_score += coh_score
