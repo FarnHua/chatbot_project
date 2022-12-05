@@ -88,8 +88,12 @@ class SoftEmbedding(nn.Module):
         self.n_tokens = n_tokens
         self.random_range = random_range
         self.device = device
+        self.learned_embedding = None
         # self.init_tensor = self.initialize_embedding(wte, n_tokens, random_range, initialize_from_vocab).view(-1).to(device)
-        self.mlp = nn.Linear(n_tokens*80, n_tokens*self.wte.weight.size(1)) # 1024 for dialoGPT
+        self.mlp = nn.Sequential(
+                    nn.Linear(n_tokens*80, n_tokens*self.wte.weight.size(1)),
+                    nn.Tanh()
+                    ) # 1024 for dialoGPT
         # self.learned_embedding = nn.parameter.Parameter(self.initialize_embedding(wte, n_tokens, random_range, initialize_from_vocab))
         ## (10,768)
         
@@ -120,12 +124,11 @@ class SoftEmbedding(nn.Module):
         # input_embedding = self.wte(tokens[:, self.n_tokens:]) ## (1,4,768)
         if tokens.size()[1] > 1:
             input_embedding = self.wte(tokens[:, self.n_tokens:]) ## (1,4,768)
-            learned_embedding = torch.FloatTensor(input_embedding.size(0), self.n_tokens, 80).uniform_(-self.random_range, self.random_range).view(input_embedding.size(0), -1)
-            # learned_embedding = self.learned_embedding.repeat(input_embedding.size(0), 1, 1) #torch.Size([1, 20, 768])
-            learned_embedding = self.mlp(learned_embedding.to(self.device)).view(input_embedding.size(0), self.n_tokens, -1)
-            # learned_embedding = learned_embedding.repeat(input_embedding.size(0), 1, 1)
-            # print(learned_embedding.size())
-            # print(input_embedding.size())
+            if self.learned_embedding == None:
+                self.learned_embedding = torch.FloatTensor(input_embedding.size(0), self.n_tokens, 80).uniform_(-self.random_range, self.random_range).view(input_embedding.size(0), -1)
+            
+            learned_embedding = self.mlp(self.learned_embedding[:input_embedding.size(0)].to(self.device)).view(input_embedding.size(0), self.n_tokens, -1)
+
             return torch.cat([learned_embedding, input_embedding], 1) #torch.Size([1, 24, 768])
         else:
             return self.wte(tokens)
@@ -240,7 +243,7 @@ def train(model_train, inputs_id, mask, model_2, model_bot, tokenizer, ll, args,
     
     with torch.no_grad():
         # prev_input, past_bot = model_2(inputs_id, past=None, attention_mask=mask)
-      output2 = model_2(inputs_id, past_key_values=None, attention_mask=mask)
+      output2 = model_2(inputs_id[:, n_tokens:], past_key_values=None, attention_mask=mask[: , n_tokens:])
       past_co = output2['past_key_values'] 
     prev_input = torch.LongTensor([[eos] * inputs_id.shape[0]]).squeeze(0).to(device_0) # (8,1)
 
