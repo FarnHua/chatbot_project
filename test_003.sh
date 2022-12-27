@@ -1,0 +1,1 @@
+python3 test_bb1.py --model model/save/bb1_len50_random_topk40_temperature22-10000.pkl --filename gay.txt --len 50
