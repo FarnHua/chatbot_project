@@ -205,8 +205,8 @@ def make_response(model, sentences, tokenizer, first_input, fil, turn):
         a = [tokenizer.decode(x).replace('<|endoftext|>', '') for x in temp_sen]
     return a
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-def main():
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def main(): 
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str,
                     help='pretrained model name or path to local checkpoint')
@@ -222,13 +222,13 @@ def main():
     model_train = GPT2LMHeadModel.from_pretrained(args.base_model)
 
     ################### handling model train
-    s_wte = SoftEmbedding(args, model_train.get_input_embeddings(), 
-                      n_tokens=args.len, 
-                      initialize_from_vocab=False)
+    # s_wte = SoftEmbedding(args, model_train.get_input_embeddings(), 
+    #                   n_tokens=args.len, 
+    #                   initialize_from_vocab=False)
 
 
 
-    model_train.set_input_embeddings(s_wte)
+    # model_train.set_input_embeddings(s_wte)
     
     model_train.to(device)
 
@@ -249,7 +249,7 @@ def main():
     tokenizer = GPT2Tokenizer.from_pretrained(args.base_model)
     eos = [tokenizer.encoder["<|endoftext|>"]]
     s = post_set('data/test.tsv', tokenizer, args.len)
-    train_dataloader = DataLoader(s, batch_size=128, shuffle=False, num_workers=2)
+    train_dataloader = DataLoader(s, batch_size=32, shuffle=False, num_workers=2)
     with torch.no_grad():
         with open(args.filename, 'w') as f:
             # print('pass\n\n')
@@ -294,25 +294,25 @@ def main():
                 
                 #if args.inter == 'gpt':
                 k = make_response(model_bot, a, tokenizer, first_input, args.fil, args.turn)
-                print(k)
+                # print(k)
             #elif args.inter == 'google':
                 #k = []
                 # for j in range(inputs_id.shape[0]):
                 #     k.append(jack.daemonPredict(sentence=a[j].replace('<|endoftext|>', '')))
             # elif args.inter == 'retrieve':
-                ii = []
-                for j in range(inputs_id.shape[0]): 
-                # ii = [tokenizer.decode(x[:-1]) for x in first_input]
-                    ii.append([tokenizer.decode(first_input[j][:-1]), a[j].replace('<|endoftext|>', '')])
+                # ii = []
+                # for j in range(inputs_id.shape[0]): 
+                # # ii = [tokenizer.decode(x[:-1]) for x in first_input]
+                #     ii.append([tokenizer.decode(first_input[j][:-1]), a[j].replace('<|endoftext|>', '')])
                     
                 # k.extend(ret_model.get_response(ii))
                # print(ret_model.get_response(ii))
                 fir = [tokenizer.decode(x).replace('<|endoftext|>', '') for x in first_input]
 
                 for i in range(inputs_id.shape[0]):
-                    f.write(fir[i] + '\n')
-                    f.write(a[i].replace('<|endoftext|>', '') + '\n')
-                    f.write(k[i] + '\n')
+                    f.write(fir[i].replace('<|endoftext|>', '').replace('\n', '.') + '\n')
+                    f.write(a[i].replace('<|endoftext|>', '').replace('\n', '.') + '\n')
+                    f.write(k[i].replace('<|endoftext|>', '').replace('\n', '.') + '\n')
                     # f.write(k[i+inputs_id.shape[0]] +'\n')
                     # f.write(k[i+inputs_id.shape[0]*2] + '\n')
                     f.write('-----------------------\n')
